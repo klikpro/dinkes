@@ -59,12 +59,12 @@ function initPublicMap() {
     { attribution: '© OpenStreetMap contributors, SRTM © OpenTopoMap', subdomains: 'abc', maxZoom: 17 }
   )
 
-  layerVoyager.addTo(publicMap)
+  layerStreets.addTo(publicMap)
 
   L.control.layers(
     {
-      '🗺️ Jalan (Modern)': layerVoyager,
       '🛣️ Jalan (Standar)': layerStreets,
+      '🗺️ Jalan (Modern)': layerVoyager,
       '🛰️ Satelit + Label': layerSatellite,
       '⛰️ Topografi': layerTopo,
     },
