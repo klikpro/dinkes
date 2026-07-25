@@ -75,14 +75,14 @@ function initPublicMap() {
   // Boundary polygon (Kabupaten Indragiri Hulu — perkiraan)
   const boundary = window.CONFIG.MAP_BOUNDARY
 
-  // Mask: gelapkan area luar kabupaten
+  // Mask: putihkan area luar kabupaten (agar fokus ke Kab. Indragiri Hulu)
   const worldRing = [
     [-85, -360], [-85, 360], [85, 360], [85, -360],
   ]
   L.polygon([worldRing, boundary.slice().reverse()], {
     stroke: false,
-    fillColor: '#0a1612',
-    fillOpacity: 0.92,
+    fillColor: '#ffffff',
+    fillOpacity: 0.88,
     interactive: false,
   }).addTo(publicMap)
 
@@ -139,16 +139,15 @@ function renderPublicMarkers() {
         iconAnchor: [9, 9],
       })
       const marker = L.marker([d.latitude, d.longitude], { icon }).addTo(publicMarkerLayer)
-      marker.bindTooltip(`<b>${d.name}</b><br><span style="opacity:.75">Belum ada data</span>`, {
-        direction: 'top',
-        offset: [0, -10],
-        opacity: 0.95,
-      })
+      marker.bindTooltip(
+        `<div class="hs-wrap"><div class="hs-title">📍 ${d.name}</div><div class="hs-row"><span class="hs-name" style="opacity:.75">Belum ada data</span></div></div>`,
+        { direction: 'top', offset: [0, -10], opacity: 0.97, className: 'district-hover-tooltip' }
+      )
       marker.on('click', () => showDistrictDetail(d))
       return
     }
 
-    // Find stunting value to determine color, else first available
+    // Find stunting value to determine marker color, else first available
     const stuntSub = publicMapData.subcategories.find(
       (s) => s.name.toLowerCase() === 'stunting'
     )
@@ -169,13 +168,53 @@ function renderPublicMarkers() {
       iconAnchor: [16, 16],
     })
     const marker = L.marker([d.latitude, d.longitude], { icon }).addTo(publicMarkerLayer)
-    const subLabel = publicMapData.subcategories.find((s) => s.id === subId)?.name || ''
-    marker.bindTooltip(
-      `<b>${d.name}</b><br><span style="opacity:.75">${subLabel}: ${v}</span> — Risiko <b>${label}</b>`,
-      { direction: 'top', offset: [0, -18], opacity: 0.95 }
-    )
+    marker.bindTooltip(buildHoverSummaryHtml(d), {
+      direction: 'top',
+      offset: [0, -18],
+      opacity: 0.97,
+      className: 'district-hover-tooltip',
+      sticky: false,
+    })
     marker.on('click', () => showDistrictDetail(d))
   })
+}
+
+/**
+ * Ringkasan hover: 6 data dengan nilai tertinggi (paling banyak kasus) di
+ * kecamatan ini, plus keterangan untuk klik jika ingin detail lengkap.
+ */
+function buildHoverSummaryHtml(district) {
+  const entries = Object.entries(district.values)
+    .map(([subId, v]) => {
+      const sc = publicMapData.subcategories.find((s) => s.id === subId)
+      if (!sc) return null
+      return { name: sc.name, unit: sc.unit || '', value: v.value, color: sc.category.color || '#065f46' }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6)
+
+  const rowsHtml =
+    entries.length > 0
+      ? entries
+          .map(
+            (e) => `
+        <div class="hs-row">
+          <span class="hs-dot" style="background:${e.color}"></span>
+          <span class="hs-name">${e.name}</span>
+          <span class="hs-value">${e.value}${e.unit ? ' ' + e.unit : ''}</span>
+        </div>`
+          )
+          .join('')
+      : `<div class="hs-row"><span class="hs-name" style="opacity:.7">Belum ada data</span></div>`
+
+  return `
+    <div class="hs-wrap">
+      <div class="hs-title">📍 ${district.name}</div>
+      ${rowsHtml}
+      <div class="hs-hint">Klik untuk lihat detail lengkap →</div>
+    </div>
+  `
 }
 
 function riskColor(v, th1, th2) {
