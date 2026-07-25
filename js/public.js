@@ -25,18 +25,52 @@ document.addEventListener('DOMContentLoaded', async () => {
 function initPublicMap() {
   publicMap = L.map('map', {
     minZoom: window.CONFIG.MAP_ZOOM,
-    maxZoom: 16,
+    maxZoom: 19,
     zoomControl: true,
   }).setView(window.CONFIG.MAP_CENTER, window.CONFIG.MAP_ZOOM)
 
-  // Gaya "Voyager" dari CARTO — tampilan lebih modern & mirip Google Maps,
-  // tetap gratis dan tanpa API key. Basemap dari OpenStreetMap, di-render
-  // ulang oleh CARTO.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap contributors © CARTO',
-    subdomains: 'abcd',
-    maxZoom: 20,
-  }).addTo(publicMap)
+  // ===========================================================================
+  // BASEMAP: beberapa pilihan gaya peta (semua gratis, tanpa API key)
+  // ===========================================================================
+  const layerVoyager = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    { attribution: '© OpenStreetMap contributors © CARTO', subdomains: 'abcd', maxZoom: 20 }
+  )
+
+  const layerStreets = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { attribution: '© OpenStreetMap contributors', maxZoom: 19 }
+  )
+
+  const layerSatellite = L.layerGroup([
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics', maxZoom: 19 }
+    ),
+    // Layer label jalan & nama tempat di atas citra satelit
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19, pane: 'shadowPane' }
+    ),
+  ])
+
+  const layerTopo = L.tileLayer(
+    'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    { attribution: '© OpenStreetMap contributors, SRTM © OpenTopoMap', subdomains: 'abc', maxZoom: 17 }
+  )
+
+  layerVoyager.addTo(publicMap)
+
+  L.control.layers(
+    {
+      '🗺️ Jalan (Modern)': layerVoyager,
+      '🛣️ Jalan (Standar)': layerStreets,
+      '🛰️ Satelit + Label': layerSatellite,
+      '⛰️ Topografi': layerTopo,
+    },
+    null,
+    { position: 'topright', collapsed: true }
+  ).addTo(publicMap)
 
   // Boundary polygon (Kabupaten Indragiri Hulu — perkiraan)
   const boundary = window.CONFIG.MAP_BOUNDARY
@@ -99,15 +133,17 @@ function renderPublicMarkers() {
       // No data — gray dot
       const icon = L.divIcon({
         className: '',
-        html: `
-          <div style="position:relative">
-            <div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;
-              background:#64748b;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>
-          </div>`,
-        iconSize: [0, 0],
+        html: `<div style="width:18px;height:18px;border-radius:50%;
+              background:#64748b;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
       })
       const marker = L.marker([d.latitude, d.longitude], { icon }).addTo(publicMarkerLayer)
-      marker.bindTooltip(d.name, { direction: 'top', offset: [0, -10] })
+      marker.bindTooltip(`<b>${d.name}</b><br><span style="opacity:.75">Belum ada data</span>`, {
+        direction: 'top',
+        offset: [0, -10],
+        opacity: 0.95,
+      })
       marker.on('click', () => showDistrictDetail(d))
       return
     }
@@ -124,18 +160,20 @@ function renderPublicMarkers() {
     const icon = L.divIcon({
       className: '',
       html: `
-        <div style="position:relative">
-          <div class="pulse-ring-anim" style="position:absolute;left:-16px;top:-16px;width:32px;height:32px;border-radius:50%;background:${color};opacity:.7"></div>
-          <div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;
+        <div style="position:relative;width:32px;height:32px;">
+          <div class="pulse-ring-anim" style="position:absolute;left:0;top:0;width:32px;height:32px;border-radius:50%;background:${color};opacity:.7"></div>
+          <div style="position:absolute;left:7px;top:7px;width:18px;height:18px;border-radius:50%;
             background:${color};border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>
         </div>`,
-      iconSize: [0, 0],
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
     })
     const marker = L.marker([d.latitude, d.longitude], { icon }).addTo(publicMarkerLayer)
-    marker.bindTooltip(`${d.name} — Risiko ${label}`, {
-      direction: 'top',
-      offset: [0, -10],
-    })
+    const subLabel = publicMapData.subcategories.find((s) => s.id === subId)?.name || ''
+    marker.bindTooltip(
+      `<b>${d.name}</b><br><span style="opacity:.75">${subLabel}: ${v}</span> — Risiko <b>${label}</b>`,
+      { direction: 'top', offset: [0, -18], opacity: 0.95 }
+    )
     marker.on('click', () => showDistrictDetail(d))
   })
 }

@@ -524,6 +524,21 @@ body.dashboard-page {
   cursor: pointer;
 }
 .excel-card .file-input::file-selector-button:hover { background: #a7f3d0; }
+.template-download-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f0fdf4;
+  border: 1px dashed #86efac;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.template-download-box b { font-size: 12.5px; color: #0f1e1a; }
+.template-download-box .btn { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 480px) {
+  .template-download-box { flex-direction: column; align-items: stretch; }
+}
 .excel-template-info {
   background: #eff6ff;
   border: 1px solid #bfdbfe;

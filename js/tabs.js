@@ -115,17 +115,18 @@ async function renderCasesTab(container, user) {
         <div class="filter-group">
           <label>Filter Kecamatan</label>
           <select id="filterDistrict">
-            <option value="">Semua</option>
-            ${districts.map((d) => `<option value="${d.id}">${d.name}</option>`).join('')}
+            <option value="" ${filterDistrict === '' ? 'selected' : ''}>Semua</option>
+            ${districts.map((d) => `<option value="${d.id}" ${filterDistrict === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
           </select>
         </div>
         <div class="filter-group">
           <label>Filter Kategori</label>
           <select id="filterCategory">
-            <option value="">Semua</option>
-            ${categories.map((c) => `<option value="${c.id}">${c.name}</option>`).join('')}
+            <option value="" ${filterCategory === '' ? 'selected' : ''}>Semua</option>
+            ${categories.map((c) => `<option value="${c.id}" ${filterCategory === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
           </select>
         </div>
+        ${(filterDistrict || filterCategory) ? `<button class="btn btn-secondary" id="resetFilterBtn" type="button">✕ Reset Filter</button>` : ''}
         <div class="total-info">Total <b style="color:#0f1e1a">${filteredCases.length}</b> data</div>
       </div>
 
@@ -185,6 +186,14 @@ async function renderCasesTab(container, user) {
       filterCategory = e.target.value
       renderTable()
     })
+    const resetBtn = document.getElementById('resetFilterBtn')
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        filterDistrict = ''
+        filterCategory = ''
+        renderTable()
+      })
+    }
     document.querySelectorAll('[data-edit]').forEach((b) => {
       b.addEventListener('click', () => {
         const c = cases.find((x) => x.id === b.dataset.edit)
@@ -924,6 +933,16 @@ async function renderExcelTab(container, user) {
         <p>Unggah file Excel untuk menambah/memperbarui data kasus secara massal. Kolom yang diperlukan: <b>Kecamatan</b>, <b>Subkategori</b>, <b>Nilai</b>. Opsional: <b>Periode</b>, <b>Catatan</b>.</p>
         <input type="file" class="file-input" id="importFile" accept=".xlsx,.xls,.csv">
         <div id="importResult" class="mt-3"></div>
+        <div class="template-download-box mt-3">
+          <div>
+            <b>📄 Belum tahu formatnya?</b>
+            <p class="text-tiny text-muted" style="margin: 2px 0 0;">
+              Unduh contoh file Excel — otomatis dibuat dari daftar Kecamatan &
+              Kategori/Subkategori yang sedang ada di database, jadi selalu sesuai/sinkron.
+            </p>
+          </div>
+          <button class="btn btn-secondary" id="downloadTemplateBtn" type="button">⬇️ Download Contoh</button>
+        </div>
       </div>
     </div>
 
@@ -947,6 +966,20 @@ async function renderExcelTab(container, user) {
     } finally {
       btn.disabled = false
       btn.innerHTML = '📥 Download Excel'
+    }
+  })
+
+  document.getElementById('downloadTemplateBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('downloadTemplateBtn')
+    btn.disabled = true
+    btn.innerHTML = '<span class="spinner"></span> Menyiapkan...'
+    try {
+      await ExcelIO.downloadTemplate()
+    } catch (e) {
+      alert('Gagal membuat contoh: ' + e.message)
+    } finally {
+      btn.disabled = false
+      btn.innerHTML = '⬇️ Download Contoh'
     }
   })
 

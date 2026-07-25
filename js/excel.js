@@ -9,6 +9,100 @@
 
 const ExcelIO = {
   /**
+   * Buat & unduh file Excel CONTOH/TEMPLATE untuk import, dibuat langsung
+   * dari data Kecamatan dan Kategori/Subkategori yang SEDANG ADA di database
+   * saat tombol diklik — sehingga selalu sinkron dengan data terbaru,
+   * tidak pernah kadaluarsa meskipun kategori/subkategori berubah.
+   */
+  async downloadTemplate() {
+    const [districts, categories] = await Promise.all([
+      Api.getDistricts(),
+      Api.getCategories(),
+    ])
+    const activeCats = categories.filter((c) => c.is_active)
+    const subcats = activeCats.flatMap((c) =>
+      c.subcategories.filter((s) => s.is_active).map((s) => ({ ...s, categoryName: c.name }))
+    )
+
+    const period = new Date().toISOString().slice(0, 7) // YYYY-MM bulan ini
+
+    // ---- Sheet 1: Data Kasus (contoh siap-pakai) ----
+    const headers = ['Kecamatan', 'Kategori', 'Subkategori', 'Nilai', 'Periode', 'Catatan']
+    const exampleDistrict = districts[0] || { name: '(belum ada kecamatan)' }
+
+    const dataRows =
+      subcats.length > 0
+        ? subcats.map((s) => [
+            exampleDistrict.name,
+            s.categoryName,
+            s.name,
+            0,
+            period,
+            'CONTOH — ganti nilai & baris ini dengan data asli, lalu tambahkan baris untuk kecamatan lain',
+          ])
+        : [['(belum ada subkategori di database — buat dulu di menu Kategori & Subkategori)', '', '', '', '', '']]
+
+    const aoa1 = [
+      ['CONTOH / TEMPLATE IMPORT DATA KASUS KESEHATAN'],
+      ['Dibuat otomatis berdasarkan data Kecamatan & Subkategori terkini pada ' + new Date().toLocaleDateString('id-ID')],
+      [],
+      headers,
+      ...dataRows,
+    ]
+    const ws1 = XLSX.utils.aoa_to_sheet(aoa1)
+    ws1['!cols'] = [
+      { wch: 20 }, { wch: 22 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 50 },
+    ]
+
+    // ---- Sheet 2: Daftar Kecamatan valid ----
+    const aoa2 = [
+      ['DAFTAR NAMA KECAMATAN YANG VALID (harus ditulis persis sama di kolom "Kecamatan")'],
+      [],
+      ['Nama Kecamatan'],
+      ...districts.map((d) => [d.name]),
+    ]
+    const ws2 = XLSX.utils.aoa_to_sheet(aoa2)
+    ws2['!cols'] = [{ wch: 28 }]
+
+    // ---- Sheet 3: Daftar Kategori & Subkategori valid ----
+    const aoa3 = [
+      ['DAFTAR KATEGORI & SUBKATEGORI YANG VALID (kolom "Subkategori" harus ditulis persis sama)'],
+      [],
+      ['Kategori', 'Subkategori', 'Satuan'],
+      ...subcats.map((s) => [s.categoryName, s.name, s.unit || '']),
+    ]
+    const ws3 = XLSX.utils.aoa_to_sheet(aoa3)
+    ws3['!cols'] = [{ wch: 24 }, { wch: 22 }, { wch: 12 }]
+
+    // ---- Sheet 4: Petunjuk ----
+    const aoa4 = [
+      ['PETUNJUK PENGISIAN'],
+      [],
+      ['1. Kolom WAJIB diisi: Kecamatan, Subkategori, Nilai. Kolom Kategori, Periode, Catatan opsional.'],
+      ['2. Nama Kecamatan & Subkategori harus PERSIS SAMA (tidak peka huruf besar/kecil) dengan'],
+      ['   daftar valid di sheet "Daftar Kecamatan" dan "Daftar Kategori & Subkategori".'],
+      ['3. Kolom Nilai harus berupa angka saja (tanpa satuan/teks).'],
+      ['4. Format Periode disarankan YYYY-MM, contoh: ' + period + '.'],
+      ['5. Jika kombinasi Kecamatan + Subkategori + Periode sudah ada, data akan DIPERBARUI (update).'],
+      ['   Jika belum ada, akan dibuat data baru (insert).'],
+      ['6. Hapus baris CONTOH di sheet "Data Kasus" sebelum mengimpor data asli, lalu tambahkan'],
+      ['   baris sebanyak yang dibutuhkan (satu baris = satu kecamatan + satu subkategori).'],
+      ['7. File ini dibuat otomatis dari data yang ada di database saat tombol diklik — jika Anda'],
+      ['   menambah/mengubah kategori atau kecamatan, unduh ulang template ini agar tetap sinkron.'],
+    ]
+    const ws4 = XLSX.utils.aoa_to_sheet(aoa4)
+    ws4['!cols'] = [{ wch: 90 }]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws1, 'Data Kasus')
+    XLSX.utils.book_append_sheet(wb, ws2, 'Daftar Kecamatan')
+    XLSX.utils.book_append_sheet(wb, ws3, 'Daftar Kategori & Subkategori')
+    XLSX.utils.book_append_sheet(wb, ws4, 'Petunjuk')
+
+    XLSX.writeFile(wb, 'contoh-template-import-data-kasus.xlsx')
+  },
+
+  /**
    * Export semua case records (yang user punya akses) ke file Excel.
    */
   async export(user) {
