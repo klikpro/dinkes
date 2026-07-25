@@ -12,8 +12,7 @@ window.CONFIG = {
   // Project URL dan anon public key dari Supabase Dashboard
   // Dashboard → Settings → API
   SUPABASE_URL: 'https://aqxllawmskworpovcofq.supabase.co',
-  SUPABASE_ANON_KEY:
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGxsYXdtc2t3b3Jwb3Zjb2ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5NjQxNzUsImV4cCI6MjEwMDU0MDE3NX0.sf2e8ZeAHDqXLLacfHHx138H5Y6VGtEwPdQZoTyz0NA',
+  SUPABASE_ANON_KEY: 'sb_publishable_9RzSGDpI_mxUZDY7FRL6_Q_xHXS8aLh',
 
   // ===========================================================================
   // GROQ EDGE FUNCTION URL
