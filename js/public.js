@@ -1,0 +1,240 @@
+/**
+ * public.js — Logika halaman peta publik (index.html)
+ */
+
+let publicMap = null
+let publicMarkerLayer = null
+let publicMapData = null
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Init Supabase
+  initSupabase()
+
+  // Init map
+  initPublicMap()
+
+  // Load data
+  await loadPublicMapData()
+
+  // Setup chat FAB
+  document.getElementById('chatFab').addEventListener('click', () => {
+    Chat.openPublic()
+  })
+})
+
+function initPublicMap() {
+  publicMap = L.map('map', {
+    minZoom: window.CONFIG.MAP_ZOOM,
+    maxZoom: 16,
+    zoomControl: true,
+  }).setView(window.CONFIG.MAP_CENTER, window.CONFIG.MAP_ZOOM)
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 16,
+  }).addTo(publicMap)
+
+  // Boundary polygon (Kabupaten Indragiri Hulu — perkiraan)
+  const boundary = window.CONFIG.MAP_BOUNDARY
+
+  // Mask: gelapkan area luar kabupaten
+  const worldRing = [
+    [-85, -360], [-85, 360], [85, 360], [85, -360],
+  ]
+  L.polygon([worldRing, boundary.slice().reverse()], {
+    stroke: false,
+    fillColor: '#0a1612',
+    fillOpacity: 0.92,
+    interactive: false,
+  }).addTo(publicMap)
+
+  L.polygon(boundary, {
+    color: '#facc15',
+    weight: 2.5,
+    fill: false,
+    dashArray: '6,4',
+  })
+    .addTo(publicMap)
+    .bindTooltip('Batas Kabupaten Indragiri Hulu (perkiraan)', { sticky: true })
+
+  publicMap.setMaxBounds(window.CONFIG.MAP_MAX_BOUNDS)
+  publicMap.fitBounds(boundary, { padding: [20, 20] })
+
+  publicMarkerLayer = L.layerGroup().addTo(publicMap)
+
+  setTimeout(() => publicMap.invalidateSize(), 200)
+  window.addEventListener('resize', () => publicMap.invalidateSize())
+}
+
+async function loadPublicMapData() {
+  try {
+    publicMapData = await Api.getPublicMapData()
+    renderPublicMarkers()
+    document.getElementById('mapLoading').style.display = 'none'
+  } catch (e) {
+    console.error('Failed to load map data', e)
+    document.getElementById('mapLoading').innerHTML = `
+      <div>
+        <p style="color: #fca5a5; margin-bottom: 8px;">Gagal memuat data peta</p>
+        <p style="font-size: 12px; opacity: 0.7;">${e.message}</p>
+        <p style="font-size: 11px; opacity: 0.5; margin-top: 12px;">
+          Pastikan Anda sudah menjalankan sql/schema.sql di Supabase SQL Editor.
+        </p>
+      </div>
+    `
+  }
+}
+
+function renderPublicMarkers() {
+  if (!publicMapData || !publicMarkerLayer) return
+  publicMarkerLayer.clearLayers()
+
+  publicMapData.districts.forEach((d) => {
+    const subIds = Object.keys(d.values)
+    if (subIds.length === 0) {
+      // No data — gray dot
+      const icon = L.divIcon({
+        className: '',
+        html: `
+          <div style="position:relative">
+            <div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;
+              background:#64748b;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>
+          </div>`,
+        iconSize: [0, 0],
+      })
+      const marker = L.marker([d.latitude, d.longitude], { icon }).addTo(publicMarkerLayer)
+      marker.bindTooltip(d.name, { direction: 'top', offset: [0, -10] })
+      marker.on('click', () => showDistrictDetail(d))
+      return
+    }
+
+    // Find stunting value to determine color, else first available
+    const stuntSub = publicMapData.subcategories.find(
+      (s) => s.name.toLowerCase() === 'stunting'
+    )
+    const subId = (stuntSub && d.values[stuntSub.id] && stuntSub.id) || subIds[0]
+    const v = d.values[subId]?.value || 0
+    const color = riskColor(v, 18, 30)
+    const label = riskLabel(v, 18, 30)
+
+    const icon = L.divIcon({
+      className: '',
+      html: `
+        <div style="position:relative">
+          <div class="pulse-ring-anim" style="position:absolute;left:-16px;top:-16px;width:32px;height:32px;border-radius:50%;background:${color};opacity:.7"></div>
+          <div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;
+            background:${color};border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>
+        </div>`,
+      iconSize: [0, 0],
+    })
+    const marker = L.marker([d.latitude, d.longitude], { icon }).addTo(publicMarkerLayer)
+    marker.bindTooltip(`${d.name} — Risiko ${label}`, {
+      direction: 'top',
+      offset: [0, -10],
+    })
+    marker.on('click', () => showDistrictDetail(d))
+  })
+}
+
+function riskColor(v, th1, th2) {
+  return v >= th2 ? '#dc2626' : v >= th1 ? '#d97706' : '#059669'
+}
+
+function riskLabel(v, th1, th2) {
+  return v >= th2 ? 'Tinggi' : v >= th1 ? 'Sedang' : 'Rendah'
+}
+
+function fmtDateSmall(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yy = String(d.getFullYear()).slice(-2)
+  return `${dd} ${mm} ${yy}`
+}
+
+function showDistrictDetail(district) {
+  // Group subcategories by category
+  const byCat = {}
+  publicMapData.subcategories.forEach((sc) => {
+    if (!district.values[sc.id]) return
+    if (!byCat[sc.category.id]) {
+      byCat[sc.category.id] = { cat: sc.category, items: [] }
+    }
+    byCat[sc.category.id].items.push(sc)
+  })
+
+  const sectionsHtml = Object.values(byCat)
+    .map(({ cat, items }) => `
+      <div class="detail-section">
+        <h3 style="color: ${cat.color || '#065f46'}">
+          <span class="color-dot" style="background: ${cat.color || '#065f46'}"></span>
+          ${cat.name}
+        </h3>
+        <div class="detail-grid">
+          ${items
+            .map((sc) => {
+              const v = district.values[sc.id]
+              return `
+              <div class="detail-stat">
+                <div class="label">${sc.name}</div>
+                <div class="value">
+                  ${v.value}
+                  <span class="unit">${sc.unit || ''}</span>
+                </div>
+                <div class="updated">Update: ${fmtDateSmall(v.updatedAt)}</div>
+              </div>`
+            })
+            .join('')}
+        </div>
+      </div>
+    `)
+    .join('')
+
+  const periodLabel = district.lastUpdate
+    ? new Date(district.lastUpdate).toLocaleDateString('id-ID', {
+        year: 'numeric',
+        month: 'long',
+      })
+    : '-'
+
+  const html = `
+    <div class="detail-overlay" id="detailOverlay">
+      <div class="detail-panel">
+        <div class="detail-head">
+          <button class="detail-close" id="detailCloseBtn">×</button>
+          <h2>📍 Kecamatan ${district.name}</h2>
+          <p>Kabupaten Indragiri Hulu, Provinsi Riau</p>
+          ${
+            district.lastUpdate
+              ? `<p class="last-update">Data diperbarui: ${fmtDateSmall(district.lastUpdate)}</p>`
+              : ''
+          }
+        </div>
+        <div class="detail-body">
+          ${
+            Object.values(byCat).length === 0
+              ? '<p class="text-center text-muted" style="padding: 32px;">Belum ada data untuk kecamatan ini.</p>'
+              : sectionsHtml
+          }
+        </div>
+        <div class="detail-foot">
+          Data bersifat resmi Dinas Kesehatan Kabupaten Indragiri Hulu · Periode ${periodLabel}
+        </div>
+      </div>
+    </div>
+  `
+
+  const container = document.getElementById('detailPanelContainer')
+  container.innerHTML = html
+
+  document.getElementById('detailOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'detailOverlay') closeDistrictDetail()
+  })
+  document.getElementById('detailCloseBtn').addEventListener('click', closeDistrictDetail)
+}
+
+function closeDistrictDetail() {
+  document.getElementById('detailPanelContainer').innerHTML = ''
+}

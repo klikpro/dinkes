@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Login Admin · Peta Kesehatan Inhu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/9/94/Lambang_Kab_Indragiri_Hulu.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body class="login-page">
+
+  <div class="login-card">
+    <!-- Header -->
+    <div class="login-head">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/9/94/Lambang_Kab_Indragiri_Hulu.png" alt="Lambang Kab. Indragiri Hulu" class="logo">
+      <h1>Login Admin Dinas Kesehatan</h1>
+      <p>Kabupaten Indragiri Hulu · Provinsi Riau</p>
+    </div>
+
+    <!-- Form -->
+    <form class="login-body" id="loginForm">
+      <div id="loginError" class="alert alert-error hidden"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="email">Email</label>
+        <input type="email" id="email" class="form-input" required autofocus
+               placeholder="nama@dinkes.go.id" autocomplete="email">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input type="password" id="password" class="form-input" required
+               placeholder="••••••••" autocomplete="current-password">
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg w-full" id="loginBtn">
+        Masuk ke Dashboard
+      </button>
+
+      <p class="login-hint">Khusus petugas resmi Dinas Kesehatan Kabupaten Indragiri Hulu</p>
+
+      <div class="login-credentials-info">
+        <b>Default Super Admin</b><br>
+        Email: <code>admin@dinkes.go.id</code> ·
+        Password: <code>admin123</code>
+      </div>
+    </form>
+
+    <!-- Footer -->
+    <div class="login-foot">
+      <a href="index.html">← Kembali ke peta publik</a>
+    </div>
+  </div>
+
+  <!-- ============== SCRIPTS ============== -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>
