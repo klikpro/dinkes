@@ -74,14 +74,15 @@
   .badge{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;font-size:11px;color:#fff}
   .b-tb{background:#dc2626}.b-hamil{background:#db2777}.b-stunt{background:#d97706}
   .popup-hint{font-size:10.5px;color:var(--teal);margin-top:8px;font-style:italic;text-align:center;font-weight:600}
-  .leaflet-popup-close-button{
-    color:#fff !important; font-size:20px !important; font-weight:400 !important;
-    top:6px !important; right:8px !important; width:24px !important; height:24px !important;
-    display:flex !important; align-items:center; justify-content:center;
-    border-radius:50%; transition:.15s; z-index:10000 !important; pointer-events:auto !important;
+  .popup-head{position:relative}
+  .popup-close{
+    position:absolute; top:8px; right:10px; width:24px; height:24px;
+    background:rgba(255,255,255,.2); border:none; border-radius:50%;
+    color:#fff; font-size:17px; line-height:1; cursor:pointer; z-index:99999;
+    display:flex; align-items:center; justify-content:center; transition:.15s;
   }
-  .leaflet-popup-close-button:hover{background:rgba(255,255,255,.3); color:#fff !important}
-  .leaflet-popup-content-wrapper{overflow:visible !important}
+  .popup-close:hover{background:rgba(255,255,255,.4)}
+  .leaflet-popup-close-button{display:none !important}
 
   /* ---------- MODAL ---------- */
   #modalOverlay{display:none;position:fixed;inset:0;background:rgba(2,8,6,.72);backdrop-filter:blur(3px);z-index:2000;align-items:center;justify-content:center;animation:fadeIn .2s ease}
@@ -89,10 +90,10 @@
   #modalBox{background:#fff;width:min(600px,92vw);max-height:88vh;overflow-y:auto;border-radius:18px;padding:0;box-shadow:0 30px 80px rgba(0,0,0,.55);animation:pop .22s cubic-bezier(.2,.9,.3,1.3)}
   @keyframes pop{from{transform:scale(.92) translateY(10px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
   #modalHead{background:linear-gradient(120deg,var(--teal-dk),var(--teal) 60%,#14b8a6);color:#fff;padding:24px 28px;border-radius:18px 18px 0 0;position:relative;overflow:hidden}
-  #modalHead::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;background:rgba(255,255,255,.08);border-radius:50%}
-  #modalHead h2{font-size:22px;font-weight:700;position:relative}
-  #modalHead p{font-size:12.5px;opacity:.85;margin-top:4px;position:relative}
-  #closeBtn{position:absolute;top:16px;right:18px;cursor:pointer;font-size:20px;background:rgba(255,255,255,.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;transition:.15s}
+  #modalHead::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;background:rgba(255,255,255,.08);border-radius:50%;z-index:1;pointer-events:none}
+  #modalHead h2{font-size:22px;font-weight:700;position:relative;z-index:2}
+  #modalHead p{font-size:12.5px;opacity:.85;margin-top:4px;position:relative;z-index:2}
+  #closeBtn{position:absolute;top:16px;right:18px;cursor:pointer;font-size:20px;background:rgba(255,255,255,.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;transition:.15s;z-index:99999}
   #closeBtn:hover{background:rgba(255,255,255,.3);transform:rotate(90deg)}
   .modal-body{padding:22px 28px}
   .section{margin-bottom:20px}
@@ -325,6 +326,7 @@ function renderMarkers(){
     const popupHtml = `
       <div class="popup-box">
         <div class="popup-head">
+          <button class="popup-close" onclick="map.closePopup()">×</button>
           <h3>📍 ${d.n}</h3>
           <span class="tag">Tingkat risiko: ${riskLabel(d.stunt,18,30)}</span>
         </div>
@@ -335,7 +337,7 @@ function renderMarkers(){
           <div class="popup-hint">✨ Klik titik untuk detail lengkap</div>
         </div>
       </div>`;
-    marker.bindPopup(popupHtml, {closeButton:true, autoClose:true});
+    marker.bindPopup(popupHtml, {closeButton:false, autoClose:true});
     marker.bindTooltip(d.n, {permanent:false, direction:'top', offset:[0,-10]});
 
     marker.on('mouseover', function(){ this.openPopup(); });
