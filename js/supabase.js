@@ -31,17 +31,21 @@ function initSupabase() {
 }
 
 /**
- * Set Authorization header dari session yang tersimpan.
- * Dipanggil setelah login berhasil.
+ * CATATAN: Aplikasi ini memakai sistem login sendiri (tabel `users` +
+ * fungsi `verify_login`), BUKAN Supabase Auth asli. Karena itu kita TIDAK
+ * PERNAH boleh mengirim token sesi custom lewat header `Authorization:
+ * Bearer ...` ke Supabase — server akan mencoba men-decode-nya sebagai
+ * JWT asli dan gagal dengan error "No suitable key or wrong key type".
+ *
+ * Semua request cukup memakai apikey (publishable/anon key) saja, dan
+ * akses ditentukan oleh RLS policy yang mengizinkan role `anon`
+ * (lihat schema_fixed.sql — policy sudah diubah ke `to anon, authenticated`).
+ * Pengecekan hak akses per-user tetap dilakukan di sisi client (JS)
+ * berdasarkan session yang tersimpan di localStorage.
  */
 function setSupabaseAuth(sessionToken) {
-  if (!supabaseClient || !sessionToken) return
-  // Supabase JS v2: gunakan supabase.auth.setSession dengan token akses custom
-  // Karena kita pakai custom session (bukan Supabase Auth), kita lewatkan via header
-  supabaseClient.rest.headers = {
-    Authorization: `Bearer ${sessionToken}`,
-    apikey: window.CONFIG.SUPABASE_ANON_KEY,
-  }
+  // Sengaja tidak melakukan apa-apa — lihat catatan di atas.
+  // Parameter dipertahankan agar kode pemanggil tidak perlu diubah.
 }
 
 // ===========================================================================
