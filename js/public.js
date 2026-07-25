@@ -29,9 +29,13 @@ function initPublicMap() {
     zoomControl: true,
   }).setView(window.CONFIG.MAP_CENTER, window.CONFIG.MAP_ZOOM)
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 16,
+  // Gaya "Voyager" dari CARTO — tampilan lebih modern & mirip Google Maps,
+  // tetap gratis dan tanpa API key. Basemap dari OpenStreetMap, di-render
+  // ulang oleh CARTO.
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap contributors © CARTO',
+    subdomains: 'abcd',
+    maxZoom: 20,
   }).addTo(publicMap)
 
   // Boundary polygon (Kabupaten Indragiri Hulu — perkiraan)
