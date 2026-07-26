@@ -363,14 +363,12 @@ const Api = {
   // IMPORTANT: Uses public_settings view which masks groq_api_key for non-super_admin.
   // For super_admin operations that need the real key, use getSettingsRaw().
   async getSettings() {
-    // Try public_settings view first (masked version)
-    let data, error
-    try {
-      const result = await sb.from('public_settings').select('key, value')
-      data = result.data
-      error = result.error
-    } catch (e) {
-      // Fallback to raw settings table if view doesn't exist yet (pre-schema_secure)
+    // Try public_settings view first (masked version). Note: a missing
+    // table/view does NOT throw in supabase-js — it comes back as
+    // { data: null, error }, so we must check `error`, not rely on catch.
+    let { data, error } = await sb.from('public_settings').select('key, value')
+    if (error) {
+      // Fallback to raw settings table if the view doesn't exist yet (pre-schema_secure)
       const result = await sb.from('settings').select('key, value')
       data = result.data
       error = result.error
