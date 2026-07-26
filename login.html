@@ -6,12 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <!-- Security headers (enforced by hosting provider when served over HTTPS) -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src https://*.supabase.co https://api.groq.com https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org https://server.arcgisonline.com https://*.tile.opentopomap.org; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
-  <meta http-equiv="X-Content-Type-Options" content="nosniff">
-  <meta http-equiv="X-Frame-Options" content="DENY">
-  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()">
-  <meta http-equiv="Strict-Transport-Security" content="max-age=63072000; includeSubDomains; preload">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src https://*.supabase.co https://api.groq.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <!-- CATATAN: X-Frame-Options, X-Content-Type-Options, Permissions-Policy, dan
+       Strict-Transport-Security TIDAK berfungsi lewat tag <meta> -- browser hanya
+       menghormatinya jika dikirim sebagai HTTP response header asli oleh server/CDN.
+       Mengisinya di sini hanya akan memunculkan warning konsol tanpa proteksi nyata
+       (persis error yang pernah muncul: "X-Frame-Options may only be set via an
+       HTTP header"). Header ini sudah dikonfigurasi di vercel.json / _headers
+       (Netlify) di root proyek -- pastikan salah satunya ikut ter-deploy.
+       Referrer-Policy DIPERTAHANKAN di bawah karena itu satu-satunya yang memang
+       didukung lewat <meta> sesuai spesifikasi. -->
+  <meta name="referrer" content="strict-origin-when-cross-origin">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/9/94/Lambang_Kab_Indragiri_Hulu.png">
@@ -70,7 +75,11 @@
 
   <!-- ============== SCRIPTS ============== -->
   <!-- SRI hashes must be computed before deployment. See README.md for instructions. -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.52.1/dist/umd/supabase.js" integrity="sha384-{COMPUTE_HASH}" crossorigin="anonymous"></script>
+  <!-- TODO (WAJIB sebelum produksi): tambahkan atribut integrity setelah menghitung
+       hash SRI asli untuk file INI PERSIS (lihat README bagian "Compute SRI Hashes").
+       Sengaja TIDAK diisi placeholder palsu: integrity yang salah/rusak membuat
+       browser MENOLAK memuat script ini sama sekali (lihat Troubleshooting README). -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.52.1/dist/umd/supabase.js"></script>
   <script src="js/config.js"></script>
   <script src="js/supabase.js"></script>
   <script src="js/auth.js"></script>
