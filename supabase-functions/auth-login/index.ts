@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET");
+    const jwtSecret = Deno.env.get("JWT_SECRET");
     if (!supabaseUrl || !serviceRoleKey || !jwtSecret) {
       console.error("auth-login misconfigured: missing env vars");
       return jsonError(corsHeaders, 500, "Server misconfigured.");
