@@ -24,26 +24,39 @@ const ExcelIO = {
   },
 
   /**
-   * Buat & unduh file Excel CONTOH/TEMPLATE untuk import, dibuat langsung
-   * dari data Kecamatan dan Kategori/Subkategori yang SEDANG ADA di database
-   * saat tombol diklik — sehingga selalu sinkron dengan data terbaru,
-   * tidak pernah kadaluarsa meskipun kategori/subkategori berubah.
+   * Buat & unduh file Excel CONTOH/TEMPLATE untuk import — HANYA berisi data
+   * kasus (satu sheet, bersih & rapi), dibuat langsung dari data Kecamatan
+   * dan Kategori/Subkategori yang SEDANG ADA di database saat tombol diklik.
+   *
+   * Jika user bukan super_admin, contoh HANYA menampilkan kategori/subkategori
+   * yang memang diizinkan untuk user tersebut — supaya template yang diunduh
+   * selalu konsisten dengan apa yang benar-benar bisa diimpor olehnya (lihat
+   * validasi permission yang sama persis di import()).
    */
-  async downloadTemplate() {
+  async downloadTemplate(user) {
     const [districts, categories] = await Promise.all([
       Api.getDistricts(),
       Api.getCategories(),
     ])
     const activeCats = categories.filter((c) => c.is_active)
-    const subcats = activeCats.flatMap((c) =>
+    let subcats = activeCats.flatMap((c) =>
       c.subcategories.filter((s) => s.is_active).map((s) => ({ ...s, categoryName: c.name }))
     )
 
-    const period = new Date().toISOString().slice(0, 7) // YYYY-MM bulan ini
+    // Batasi contoh hanya ke subkategori yang diizinkan untuk user (non-super-admin)
+    if (user && user.role !== 'super_admin') {
+      const allowedIds = new Set((user.permissions || []).map((p) => p.subcategory_id))
+      subcats = subcats.filter((s) => allowedIds.has(s.id))
+      if (subcats.length === 0) {
+        throw new Error('Anda belum memiliki izin akses ke kategori/subkategori manapun, sehingga tidak ada contoh yang bisa dibuat. Hubungi super admin untuk memberikan akses.')
+      }
+    }
 
-    // ---- Sheet 1: Data Kasus (contoh siap-pakai) ----
-    const headers = ['Kecamatan', 'Kategori', 'Subkategori', 'Nilai', 'Periode', 'Catatan']
+    const period = new Date().toISOString().slice(0, 7) // YYYY-MM bulan ini
     const exampleDistrict = districts[0] || { name: '(belum ada kecamatan)' }
+    const validDistrictNames = districts.map((d) => d.name).join(', ') || '(belum ada kecamatan)'
+
+    const headers = ['Kecamatan', 'Kategori', 'Subkategori', 'Nilai', 'Periode', 'Catatan']
 
     const dataRows =
       subcats.length > 0
@@ -53,67 +66,51 @@ const ExcelIO = {
             s.name,
             0,
             period,
-            'CONTOH — ganti nilai & baris ini dengan data asli, lalu tambahkan baris untuk kecamatan lain',
+            'Ganti Kecamatan & Nilai sesuai data asli',
           ])
-        : [['(belum ada subkategori di database — buat dulu di menu Kategori & Subkategori)', '', '', '', '', '']]
+        : [['(belum ada subkategori yang bisa diimpor)', '', '', '', '', '']]
 
-    const aoa1 = [
-      ['CONTOH / TEMPLATE IMPORT DATA KASUS KESEHATAN'],
-      ['Dibuat otomatis berdasarkan data Kecamatan & Subkategori terkini pada ' + new Date().toLocaleDateString('id-ID')],
-      [],
+    const title = 'CONTOH / TEMPLATE IMPORT DATA KASUS KESEHATAN'
+    const subtitle = (user && user.role !== 'super_admin')
+      ? `Hanya menampilkan kategori sesuai izin akses Anda · dibuat ${new Date().toLocaleDateString('id-ID')}`
+      : `Dibuat otomatis dari data terkini · ${new Date().toLocaleDateString('id-ID')}`
+    const info1 = `Kecamatan valid: ${validDistrictNames}`
+    const info2 = 'Wajib diisi: Kecamatan, Subkategori, Nilai (angka). Kategori/Periode/Catatan opsional. Hapus baris contoh lalu isi data asli — jika kombinasi Kecamatan+Subkategori+Periode sudah ada, data akan diperbarui (update), jika belum akan dibuat baru (insert).'
+
+    const headerRowIdx = 4 // baris ke-5 (0-indexed 4)
+    const aoa = [
+      [title],
+      [subtitle],
+      [info1],
+      [info2],
       headers,
       ...dataRows,
     ]
-    const ws1 = XLSX.utils.aoa_to_sheet(aoa1)
-    ws1['!cols'] = [
-      { wch: 20 }, { wch: 22 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 50 },
-    ]
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
 
-    // ---- Sheet 2: Daftar Kecamatan valid ----
-    const aoa2 = [
-      ['DAFTAR NAMA KECAMATAN YANG VALID (harus ditulis persis sama di kolom "Kecamatan")'],
-      [],
-      ['Nama Kecamatan'],
-      ...districts.map((d) => [d.name]),
+    // Layout rapi: lebar kolom pas, judul di-merge, baris header dibekukan + filter
+    ws['!cols'] = [
+      { wch: 22 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 42 },
     ]
-    const ws2 = XLSX.utils.aoa_to_sheet(aoa2)
-    ws2['!cols'] = [{ wch: 28 }]
-
-    // ---- Sheet 3: Daftar Kategori & Subkategori valid ----
-    const aoa3 = [
-      ['DAFTAR KATEGORI & SUBKATEGORI YANG VALID (kolom "Subkategori" harus ditulis persis sama)'],
-      [],
-      ['Kategori', 'Subkategori', 'Satuan'],
-      ...subcats.map((s) => [s.categoryName, s.name, s.unit || '']),
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: headers.length - 1 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: headers.length - 1 } },
     ]
-    const ws3 = XLSX.utils.aoa_to_sheet(aoa3)
-    ws3['!cols'] = [{ wch: 24 }, { wch: 22 }, { wch: 12 }]
-
-    // ---- Sheet 4: Petunjuk ----
-    const aoa4 = [
-      ['PETUNJUK PENGISIAN'],
-      [],
-      ['1. Kolom WAJIB diisi: Kecamatan, Subkategori, Nilai. Kolom Kategori, Periode, Catatan opsional.'],
-      ['2. Nama Kecamatan & Subkategori harus PERSIS SAMA (tidak peka huruf besar/kecil) dengan'],
-      ['   daftar valid di sheet "Daftar Kecamatan" dan "Daftar Kategori & Subkategori".'],
-      ['3. Kolom Nilai harus berupa angka saja (tanpa satuan/teks).'],
-      ['4. Format Periode disarankan YYYY-MM, contoh: ' + period + '.'],
-      ['5. Jika kombinasi Kecamatan + Subkategori + Periode sudah ada, data akan DIPERBARUI (update).'],
-      ['   Jika belum ada, akan dibuat data baru (insert).'],
-      ['6. Hapus baris CONTOH di sheet "Data Kasus" sebelum mengimpor data asli, lalu tambahkan'],
-      ['   baris sebanyak yang dibutuhkan (satu baris = satu kecamatan + satu subkategori).'],
-      ['7. File ini dibuat otomatis dari data yang ada di database saat tombol diklik — jika Anda'],
-      ['   menambah/mengubah kategori atau kecamatan, unduh ulang template ini agar tetap sinkron.'],
+    ws['!rows'] = [
+      { hpt: 22 }, { hpt: 16 }, { hpt: 16 }, { hpt: 30 }, { hpt: 18 },
     ]
-    const ws4 = XLSX.utils.aoa_to_sheet(aoa4)
-    ws4['!cols'] = [{ wch: 90 }]
+    ws['!freeze'] = { xSplit: 0, ySplit: headerRowIdx + 1 }
+    ws['!autofilter'] = {
+      ref: XLSX.utils.encode_range(
+        { r: headerRowIdx, c: 0 },
+        { r: headerRowIdx, c: headers.length - 1 }
+      ),
+    }
 
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws1, 'Data Kasus')
-    XLSX.utils.book_append_sheet(wb, ws2, 'Daftar Kecamatan')
-    XLSX.utils.book_append_sheet(wb, ws3, 'Daftar Kategori & Subkategori')
-    XLSX.utils.book_append_sheet(wb, ws4, 'Petunjuk')
-
+    XLSX.utils.book_append_sheet(wb, ws, 'Data Kasus')
     XLSX.writeFile(wb, 'contoh-template-import-data-kasus.xlsx')
   },
 
@@ -225,10 +222,15 @@ const ExcelIO = {
     const subByName = {}
     subcats.forEach((s) => (subByName[s.name.toLowerCase()] = s))
 
-    // Untuk non-super-admin, cek permission per subcategory
+    // Untuk non-super-admin, cek permission per subcategory. Setiap baris yang
+    // kategorinya TIDAK termasuk dalam daftar izin akses user akan DITOLAK
+    // (tidak diimpor) — lihat pengecekan userPermIds di loop bawah.
     let userPermIds = null
     if (user.role !== 'super_admin') {
       userPermIds = new Set((user.permissions || []).map((p) => p.subcategory_id))
+      if (userPermIds.size === 0) {
+        throw new Error('Anda tidak memiliki izin akses ke kategori/subkategori manapun, sehingga tidak ada data yang bisa diimpor. Hubungi super admin.')
+      }
     }
 
     const dataRows = aoa.slice(headerRowIdx + 1).filter((r) =>

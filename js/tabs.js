@@ -994,8 +994,8 @@ async function renderExcelTab(container, user) {
           <div>
             <b>📄 Belum tahu formatnya?</b>
             <p class="text-tiny text-muted" style="margin: 2px 0 0;">
-              Unduh contoh file Excel — otomatis dibuat dari daftar Kecamatan &
-              Kategori/Subkategori yang sedang ada di database, jadi selalu sesuai/sinkron.
+              Unduh contoh file Excel (1 sheet, khusus Data Kasus) — otomatis dibuat dari
+              Kecamatan & hanya Kategori/Subkategori yang menjadi izin akses Anda.
             </p>
           </div>
           <button class="btn btn-secondary" id="downloadTemplateBtn" type="button">⬇️ Download Contoh</button>
@@ -1008,7 +1008,8 @@ async function renderExcelTab(container, user) {
       <p>Baris 1-3: Heading (boleh ada/tidak, akan dilewati otomatis).</p>
       <p>Baris header wajib berisi minimal: <b>Kecamatan</b>, <b>Subkategori</b>, <b>Nilai</b>.</p>
       <p class="mt-2">Nilai Kecamatan & Subkategori harus <b>sama persis</b> dengan yang ada di database (case-insensitive).</p>
-      <p class="mt-2">Tip: Lakukan Export terlebih dahulu untuk melihat format yang benar, lalu edit nilainya.</p>
+      <p class="mt-2">🔒 Baris dengan Subkategori di luar izin akses Anda akan <b>otomatis ditolak</b> (tidak diimpor), meskipun formatnya benar.</p>
+      <p class="mt-2">Tip: Klik "Download Contoh" untuk mendapatkan file contoh yang hanya berisi kategori sesuai izin akses Anda.</p>
     </div>
   `
 
@@ -1031,7 +1032,7 @@ async function renderExcelTab(container, user) {
     btn.disabled = true
     btn.innerHTML = '<span class="spinner"></span> Menyiapkan...'
     try {
-      await ExcelIO.downloadTemplate()
+      await ExcelIO.downloadTemplate(user)
     } catch (e) {
       showToast('Gagal membuat contoh: ' + safeErrorMessage(e))
     } finally {
