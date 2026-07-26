@@ -843,11 +843,11 @@ function showUserForm(currentUser, categories, editing) {
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
         <div class="form-group">
           <label class="form-label">Nama Lengkap</label>
-          <input class="form-input" id="userName" required maxlength="50" value="${isEdit ? sanitizeAttr(editing.name) : ''}">
+          <input class="form-input" id="userFormName" required maxlength="50" value="${isEdit ? sanitizeAttr(editing.name) : ''}">
         </div>
         <div class="form-group">
           <label class="form-label">Email</label>
-          <input type="email" class="form-input" id="userEmail" required maxlength="100" value="${isEdit ? sanitizeAttr(editing.email) : ''}">
+          <input type="email" class="form-input" id="userFormEmail" required maxlength="100" value="${isEdit ? sanitizeAttr(editing.email) : ''}">
         </div>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -931,8 +931,8 @@ function showUserForm(currentUser, categories, editing) {
         can_input: true,
       }))
       const payload = {
-        name: document.getElementById('userName').value.trim(),
-        email: document.getElementById('userEmail').value.trim(),
+        name: document.getElementById('userFormName').value.trim(),
+        email: document.getElementById('userFormEmail').value.trim(),
         role,
         is_active: document.getElementById('userActive').checked,
         permissions: role === 'super_admin' ? [] : perms,
