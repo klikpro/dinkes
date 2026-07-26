@@ -25,7 +25,7 @@ window.CONFIG = {
   // (`to authenticated` policies) will actually accept — writes will fail
   // with "permission denied" no matter what schema you run.
   // Format: https://aqxllawmskworpovcofq.supabase.co/functions/v1/auth-login
-  AUTH_LOGIN_EDGE_FUNCTION_URL: '',
+  AUTH_LOGIN_EDGE_FUNCTION_URL: 'https://aqxllawmskworpovcofq.supabase.co/functions/v1/auth-login',
 
   // ===========================================================================
   // GROQ EDGE FUNCTION URL
