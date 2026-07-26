@@ -32,19 +32,54 @@ function fmtDateTime(iso) {
   })
 }
 
+function sanitizeAttr(str) {
+  // Escape for HTML attribute context (quotes)
+  if (!str) return ''
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * Validate a category color is a plain #rgb/#rrggbb hex value before it's
+ * interpolated into a style="..." attribute. See public.js for why this
+ * matters even for dashboard-only rendering: the same color value also
+ * gets rendered on the public map page.
+ */
+function safeColor(value) {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value || '') ? value : '#065f46'
+}
+
+function checkPasswordStrength(pwd) {
+  if (!pwd || pwd.length < 8) return { score: 0, label: 'Terlalu pendek', color: '#dc2626' }
+  let score = 0
+  if (pwd.length >= 12) score++
+  if (/[A-Z]/.test(pwd)) score++
+  if (/[0-9]/.test(pwd)) score++
+  if (/[^A-Za-z0-9]/.test(pwd)) score++
+  if (score <= 1) return { score, label: 'Lemah', color: '#dc2626' }
+  if (score <= 2) return { score, label: 'Cukup', color: '#d97706' }
+  return { score, label: 'Kuat', color: '#059669' }
+}
+
 function openModal(title, bodyHtml, options = {}) {
   const container = document.getElementById('modalContainer')
   container.innerHTML = `
     <div class="modal-overlay" id="modalOverlay">
-      <div class="modal ${options.size === 'lg' ? 'modal-lg' : ''}" onclick="event.stopPropagation()">
+      <div class="modal ${options.size === 'lg' ? 'modal-lg' : ''}" id="modalInner">
         <div class="modal-header">
-          <h3>${title}</h3>
+          <h3>${sanitizeHtml(title)}</h3>
           <button class="modal-close" id="modalCloseBtn">×</button>
         </div>
         <div class="modal-body">${bodyHtml}</div>
       </div>
     </div>
   `
+  // NOTE: this used to be an inline onclick="event.stopPropagation()" attribute.
+  // The CSP on every page (script-src has no 'unsafe-inline') blocks inline
+  // event handler attributes, so that click-through-to-overlay guard was
+  // silently non-functional — clicking anywhere inside the modal would
+  // bubble up and instantly close it. Using addEventListener instead works
+  // under the CSP and actually stops the click from reaching the overlay.
+  document.getElementById('modalInner').addEventListener('click', (e) => e.stopPropagation())
   document.getElementById('modalOverlay').addEventListener('click', closeModal)
   document.getElementById('modalCloseBtn').addEventListener('click', closeModal)
 }
@@ -116,14 +151,14 @@ async function renderCasesTab(container, user) {
           <label>Filter Kecamatan</label>
           <select id="filterDistrict">
             <option value="" ${filterDistrict === '' ? 'selected' : ''}>Semua</option>
-            ${districts.map((d) => `<option value="${d.id}" ${filterDistrict === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
+            ${districts.map((d) => `<option value="${d.id}" ${filterDistrict === d.id ? 'selected' : ''}>${sanitizeHtml(d.name)}</option>`).join('')}
           </select>
         </div>
         <div class="filter-group">
           <label>Filter Kategori</label>
           <select id="filterCategory">
             <option value="" ${filterCategory === '' ? 'selected' : ''}>Semua</option>
-            ${categories.map((c) => `<option value="${c.id}" ${filterCategory === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+            ${categories.map((c) => `<option value="${c.id}" ${filterCategory === c.id ? 'selected' : ''}>${sanitizeHtml(c.name)}</option>`).join('')}
           </select>
         </div>
         ${(filterDistrict || filterCategory) ? `<button class="btn btn-secondary" id="resetFilterBtn" type="button">✕ Reset Filter</button>` : ''}
@@ -149,18 +184,18 @@ async function renderCasesTab(container, user) {
                 <tr class="empty-row"><td colspan="7">Tidak ada data. Klik "Tambah Data" untuk membuat baru.</td></tr>
               ` : filteredCases.map((c) => `
                 <tr>
-                  <td class="font-semibold">${c.district.name}</td>
+                  <td class="font-semibold">${sanitizeHtml(c.district.name)}</td>
                   <td>
-                    <span class="badge" style="background: ${(c.subcategory.category.color || '#065f46')}20; color: ${c.subcategory.category.color || '#065f46'}">
-                      ${c.subcategory.category.name}
+                    <span class="badge" style="background: ${safeColor(c.subcategory.category.color)}20; color: ${safeColor(c.subcategory.category.color)}">
+                      ${sanitizeHtml(c.subcategory.category.name)}
                     </span>
                   </td>
                   <td>
-                    ${c.subcategory.name}
-                    ${c.subcategory.unit ? `<span class="text-tiny text-muted">(${c.subcategory.unit})</span>` : ''}
+                    ${sanitizeHtml(c.subcategory.name)}
+                    ${c.subcategory.unit ? `<span class="text-tiny text-muted">(${sanitizeHtml(c.subcategory.unit)})</span>` : ''}
                   </td>
-                  <td class="text-right font-bold" style="font-size: 14px;">${c.value}</td>
-                  <td class="text-muted text-small">${c.period || '-'}</td>
+                  <td class="text-right font-bold" style="font-size: 14px;">${sanitizeHtml(c.value)}</td>
+                  <td class="text-muted text-small">${sanitizeHtml(c.period || '-')}</td>
                   <td class="text-muted text-small">${fmtDateTime(c.updated_at)}</td>
                   <td>
                     <div class="actions">
@@ -206,7 +241,7 @@ async function renderCasesTab(container, user) {
         try {
           await Api.deleteCase(b.dataset.del)
           renderCasesTab(container, user)
-        } catch (e) { alert(e.message) }
+        } catch (e) { alert(safeErrorMessage(e)) }
       })
     })
   }
@@ -223,7 +258,7 @@ function showCaseForm(user, categories, districts, allowedSubIds, editing) {
         <label class="form-label">Kecamatan</label>
         <select class="form-select" id="cfDistrict" required ${isEdit ? 'disabled' : ''}>
           <option value="">Pilih kecamatan</option>
-          ${districts.map((d) => `<option value="${d.id}" ${isEdit && editing.district_id === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
+          ${districts.map((d) => `<option value="${d.id}" ${isEdit && editing.district_id === d.id ? 'selected' : ''}>${sanitizeHtml(d.name)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -231,10 +266,10 @@ function showCaseForm(user, categories, districts, allowedSubIds, editing) {
         <select class="form-select" id="cfSubcat" required ${isEdit ? 'disabled' : ''}>
           <option value="">Pilih subkategori</option>
           ${categories.map((c) => `
-            <optgroup label="${c.name}">
+            <optgroup label="${sanitizeHtml(c.name)}">
               ${c.subcategories
                 .filter((s) => allowedSubIds.has(s.id) && s.is_active)
-                .map((s) => `<option value="${s.id}" ${isEdit && editing.subcategory_id === s.id ? 'selected' : ''}>${s.name} ${s.unit ? `(${s.unit})` : ''}</option>`)
+                .map((s) => `<option value="${s.id}" ${isEdit && editing.subcategory_id === s.id ? 'selected' : ''}>${sanitizeHtml(s.name)} ${s.unit ? `(${sanitizeHtml(s.unit)})` : ''}</option>`)
                 .join('')}
             </optgroup>
           `).join('')}
@@ -242,15 +277,15 @@ function showCaseForm(user, categories, districts, allowedSubIds, editing) {
       </div>
       <div class="form-group">
         <label class="form-label">Nilai</label>
-        <input type="number" step="0.01" class="form-input" id="cfValue" required value="${isEdit ? editing.value : ''}">
+        <input type="number" step="0.01" class="form-input" id="cfValue" required min="0" max="999999" value="${isEdit ? sanitizeAttr(editing.value) : ''}">
       </div>
       <div class="form-group">
         <label class="form-label">Periode (YYYY-MM)</label>
-        <input type="month" class="form-input" id="cfPeriod" value="${isEdit ? (editing.period || periodDefault) : periodDefault}">
+        <input type="month" class="form-input" id="cfPeriod" value="${isEdit ? sanitizeAttr(editing.period || periodDefault) : periodDefault}">
       </div>
       <div class="form-group">
         <label class="form-label">Catatan (opsional)</label>
-        <textarea class="form-textarea" id="cfNotes" rows="2">${isEdit ? (editing.notes || '') : ''}</textarea>
+        <textarea class="form-textarea" id="cfNotes" rows="2" maxlength="500">${isEdit ? sanitizeHtml(editing.notes || '') : ''}</textarea>
       </div>
       <div class="modal-footer" style="margin: 16px -20px -20px;">
         <button type="button" class="btn btn-secondary" id="cfCancel">Batal</button>
@@ -274,6 +309,10 @@ function showCaseForm(user, categories, districts, allowedSubIds, editing) {
         period: document.getElementById('cfPeriod').value || null,
         notes: document.getElementById('cfNotes').value.trim() || null,
       }
+      // Validate value range
+      if (isNaN(payload.value) || payload.value < 0 || payload.value > 999999) {
+        throw new Error('Nilai harus berupa angka antara 0 dan 999999.')
+      }
       if (isEdit) {
         await Api.updateCase(editing.id, { value: payload.value, period: payload.period, notes: payload.notes }, user.id)
       } else {
@@ -284,7 +323,7 @@ function showCaseForm(user, categories, districts, allowedSubIds, editing) {
       const content = document.getElementById('tabContent')
       renderCasesTab(content, user)
     } catch (err) {
-      alert(err.message)
+      alert(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -315,13 +354,13 @@ async function renderCategoriesTab(container, user) {
         <div class="cat-card ${cat.is_active ? '' : 'inactive'}">
           <div class="cat-head">
             <div class="info">
-              <div class="color-dot" style="background: ${cat.color || '#065f46'}"></div>
+              <div class="color-dot" style="background: ${safeColor(cat.color)}"></div>
               <div>
                 <h3>
-                  ${cat.name}
+                  ${sanitizeHtml(cat.name)}
                   ${!cat.is_active ? '<span class="badge badge-muted">NONAKTIF</span>' : ''}
                 </h3>
-                ${cat.description ? `<div class="desc">${cat.description}</div>` : ''}
+                ${cat.description ? `<div class="desc">${sanitizeHtml(cat.description)}</div>` : ''}
               </div>
             </div>
             <div class="actions">
@@ -343,11 +382,11 @@ async function renderCategoriesTab(container, user) {
               <div class="subcat-item">
                 <div>
                   <div class="name">
-                    ${sub.name}
-                    ${sub.unit ? `<span class="unit">(${sub.unit})</span>` : ''}
+                    ${sanitizeHtml(sub.name)}
+                    ${sub.unit ? `<span class="unit">(${sanitizeHtml(sub.unit)})</span>` : ''}
                     ${!sub.is_active ? '<span class="badge badge-muted">NONAKTIF</span>' : ''}
                   </div>
-                  ${sub.description ? `<div class="desc">${sub.description}</div>` : ''}
+                  ${sub.description ? `<div class="desc">${sanitizeHtml(sub.description)}</div>` : ''}
                 </div>
                 <div class="actions">
                   <button class="btn btn-sm btn-secondary" data-edit-sub="${sub.id}">Edit</button>
@@ -378,7 +417,7 @@ async function renderCategoriesTab(container, user) {
       try {
         await Api.updateCategory(c.id, { is_active: !c.is_active })
         renderCategoriesTab(container, user)
-      } catch (e) { alert(e.message) }
+      } catch (e) { alert(safeErrorMessage(e)) }
     })
   })
   document.querySelectorAll('[data-del-cat]').forEach((b) => {
@@ -388,7 +427,7 @@ async function renderCategoriesTab(container, user) {
       try {
         await Api.deleteCategory(b.dataset.delCat)
         renderCategoriesTab(container, user)
-      } catch (e) { alert(e.message) }
+      } catch (e) { alert(safeErrorMessage(e)) }
     })
   })
   document.querySelectorAll('[data-add-sub]').forEach((b) => {
@@ -420,7 +459,7 @@ async function renderCategoriesTab(container, user) {
           await Api.updateSubcategory(b.dataset.toggleSub, { is_active: !sub.is_active })
         }
         renderCategoriesTab(container, user)
-      } catch (e) { alert(e.message) }
+      } catch (e) { alert(safeErrorMessage(e)) }
     })
   })
   document.querySelectorAll('[data-del-sub]').forEach((b) => {
@@ -429,7 +468,7 @@ async function renderCategoriesTab(container, user) {
       try {
         await Api.deleteSubcategory(b.dataset.delSub)
         renderCategoriesTab(container, user)
-      } catch (e) { alert(e.message) }
+      } catch (e) { alert(safeErrorMessage(e)) }
     })
   })
 }
@@ -440,11 +479,11 @@ function showCategoryForm(user, editing) {
     <form id="catForm">
       <div class="form-group">
         <label class="form-label">Nama Kategori</label>
-        <input class="form-input" id="catName" required value="${isEdit ? editing.name : ''}" placeholder="e.g. Penyakit Menular">
+        <input class="form-input" id="catName" required maxlength="50" value="${isEdit ? sanitizeAttr(editing.name) : ''}" placeholder="e.g. Penyakit Menular">
       </div>
       <div class="form-group">
         <label class="form-label">Deskripsi</label>
-        <textarea class="form-textarea" id="catDesc" rows="2">${isEdit ? (editing.description || '') : ''}</textarea>
+        <textarea class="form-textarea" id="catDesc" rows="2" maxlength="500">${isEdit ? sanitizeHtml(editing.description || '') : ''}</textarea>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
         <div class="form-group">
@@ -500,7 +539,7 @@ function showCategoryForm(user, editing) {
       const content = document.getElementById('tabContent')
       renderCategoriesTab(content, user)
     } catch (err) {
-      alert(err.message)
+      alert(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -512,20 +551,20 @@ function showSubcategoryForm(user, cat, editing) {
   const body = `
     <form id="subForm">
       <div style="background: #f1f5f9; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px;">
-        Kategori: <b>${cat.name}</b>
+        Kategori: <b>${sanitizeHtml(cat.name)}</b>
       </div>
       <div class="form-group">
         <label class="form-label">Nama Subkategori</label>
-        <input class="form-input" id="subName" required value="${isEdit ? editing.name : ''}" placeholder="e.g. TB, Stunting, Ibu Hamil">
+        <input class="form-input" id="subName" required maxlength="50" value="${isEdit ? sanitizeAttr(editing.name) : ''}" placeholder="e.g. TB, Stunting, Ibu Hamil">
       </div>
       <div class="form-group">
         <label class="form-label">Deskripsi</label>
-        <textarea class="form-textarea" id="subDesc" rows="2">${isEdit ? (editing.description || '') : ''}</textarea>
+        <textarea class="form-textarea" id="subDesc" rows="2" maxlength="500">${isEdit ? sanitizeHtml(editing.description || '') : ''}</textarea>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
         <div class="form-group">
           <label class="form-label">Satuan</label>
-          <input class="form-input" id="subUnit" value="${isEdit ? (editing.unit || '') : ''}" placeholder="orang / anak / %">
+          <input class="form-input" id="subUnit" maxlength="20" value="${isEdit ? sanitizeAttr(editing.unit || '') : ''}" placeholder="orang / anak / %">
         </div>
         <div class="form-group">
           <label class="form-label">Urutan</label>
@@ -542,7 +581,7 @@ function showSubcategoryForm(user, cat, editing) {
       </div>
     </form>
   `
-  openModal(isEdit ? 'Edit Subkategori' : `Tambah Subkategori · ${cat.name}`, body)
+  openModal(isEdit ? 'Edit Subkategori' : `Tambah Subkategori · ${sanitizeHtml(cat.name)}`, body)
   document.getElementById('subCancel').addEventListener('click', closeModal)
   document.getElementById('subForm').addEventListener('submit', async (e) => {
     e.preventDefault()
@@ -566,7 +605,7 @@ function showSubcategoryForm(user, cat, editing) {
       const content = document.getElementById('tabContent')
       renderCategoriesTab(content, user)
     } catch (err) {
-      alert(err.message)
+      alert(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -605,7 +644,7 @@ async function renderDistrictsTab(container, user) {
             <tr class="empty-row"><td colspan="4">Belum ada kecamatan.</td></tr>
           ` : districts.map((d) => `
             <tr>
-              <td class="font-semibold">${d.name}</td>
+              <td class="font-semibold">${sanitizeHtml(d.name)}</td>
               <td class="text-muted">${d.latitude}</td>
               <td class="text-muted">${d.longitude}</td>
               <td>
@@ -631,11 +670,11 @@ async function renderDistrictsTab(container, user) {
   document.querySelectorAll('[data-del]').forEach((b) => {
     b.addEventListener('click', async () => {
       const d = districts.find((x) => x.id === b.dataset.del)
-      if (!confirm(`Hapus kecamatan "${d.name}"? Semua data kasus terkait akan ikut terhapus.`)) return
+      if (!confirm(`Hapus kecamatan "${sanitizeHtml(d.name)}"? Semua data kasus terkait akan ikut terhapus.`)) return
       try {
         await Api.deleteDistrict(b.dataset.del)
         renderDistrictsTab(container, user)
-      } catch (e) { alert(e.message) }
+      } catch (e) { alert(safeErrorMessage(e)) }
     })
   })
 }
@@ -646,7 +685,7 @@ function showDistrictForm(user, editing) {
     <form id="distForm">
       <div class="form-group">
         <label class="form-label">Nama Kecamatan</label>
-        <input class="form-input" id="distName" required value="${isEdit ? editing.name : ''}">
+        <input class="form-input" id="distName" required maxlength="50" value="${isEdit ? sanitizeAttr(editing.name) : ''}">
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
         <div class="form-group">
@@ -686,7 +725,7 @@ function showDistrictForm(user, editing) {
       const content = document.getElementById('tabContent')
       renderDistrictsTab(content, user)
     } catch (err) {
-      alert(err.message)
+      alert(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -719,11 +758,11 @@ async function renderUsersTab(container, user) {
           <div class="head">
             <div>
               <h3>
-                ${u.name}
+                ${sanitizeHtml(u.name)}
                 ${u.role === 'super_admin' ? '<span class="badge badge-success">SUPER ADMIN</span>' : '<span class="badge badge-muted">OPERATOR</span>'}
                 ${!u.is_active ? '<span class="badge badge-danger">NONAKTIF</span>' : ''}
               </h3>
-              <div class="email">${u.email}</div>
+              <div class="email">${sanitizeHtml(u.email)}</div>
               <div class="created">Dibuat: ${fmtDateTime(u.created_at)}</div>
             </div>
             <div class="actions">
@@ -739,7 +778,7 @@ async function renderUsersTab(container, user) {
               ` : `
                 <div class="perm-tags">
                   ${u.permissions.map((p) => `
-                    <span class="perm-tag" title="${p.subcategory.category.name}">${p.subcategory.category.name} · ${p.subcategory.name}</span>
+                    <span class="perm-tag" title="${sanitizeHtml(p.subcategory.category.name)}">${sanitizeHtml(p.subcategory.category.name)} · ${sanitizeHtml(p.subcategory.name)}</span>
                   `).join('')}
                 </div>
               `}
@@ -767,11 +806,11 @@ async function renderUsersTab(container, user) {
   document.querySelectorAll('[data-del-user]').forEach((b) => {
     b.addEventListener('click', async () => {
       const u = users.find((x) => x.id === b.dataset.delUser)
-      if (!confirm(`Hapus user "${u.name}"?`)) return
+      if (!confirm(`Hapus user "${sanitizeHtml(u.name)}"?`)) return
       try {
         await Api.deleteUser(b.dataset.delUser)
         renderUsersTab(container, user)
-      } catch (e) { alert(e.message) }
+      } catch (e) { alert(safeErrorMessage(e)) }
     })
   })
 }
@@ -783,15 +822,15 @@ function showUserForm(currentUser, categories, editing) {
   const permCheckboxesHtml = categories.map((cat) => `
     <div class="perm-cat">
       <div class="perm-cat-head">
-        <span class="dot" style="background: ${cat.color || '#065f46'}"></span>
-        <span class="name">${cat.name} ${!cat.is_active ? '(nonaktif)' : ''}</span>
+        <span class="dot" style="background: ${safeColor(cat.color)}"></span>
+        <span class="name">${sanitizeHtml(cat.name)} ${!cat.is_active ? '(nonaktif)' : ''}</span>
       </div>
       <div class="perm-cat-items">
         ${cat.subcategories.length === 0 ? '<div style="font-size: 11px; color: #94a3b8; font-style: italic;">Belum ada subkategori.</div>' : cat.subcategories.map((sub) => `
           <label class="perm-item ${!sub.is_active ? 'style="opacity: 0.5;"' : ''}">
             <input type="checkbox" data-perm-sub="${sub.id}" ${initialPerms.has(sub.id) ? 'checked' : ''}>
-            <span>${sub.name}</span>
-            ${sub.unit ? `<span class="unit">(${sub.unit})</span>` : ''}
+            <span>${sanitizeHtml(sub.name)}</span>
+            ${sub.unit ? `<span class="unit">(${sanitizeHtml(sub.unit)})</span>` : ''}
             ${!sub.is_active ? '<span class="unit">(nonaktif)</span>' : ''}
           </label>
         `).join('')}
@@ -804,17 +843,18 @@ function showUserForm(currentUser, categories, editing) {
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
         <div class="form-group">
           <label class="form-label">Nama Lengkap</label>
-          <input class="form-input" id="userName" required value="${isEdit ? editing.name : ''}">
+          <input class="form-input" id="userName" required maxlength="50" value="${isEdit ? sanitizeAttr(editing.name) : ''}">
         </div>
         <div class="form-group">
           <label class="form-label">Email</label>
-          <input type="email" class="form-input" id="userEmail" required value="${isEdit ? editing.email : ''}">
+          <input type="email" class="form-input" id="userEmail" required maxlength="100" value="${isEdit ? sanitizeAttr(editing.email) : ''}">
         </div>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
         <div class="form-group">
           <label class="form-label">Password ${isEdit ? '(kosongkan jika tidak diubah)' : ''}</label>
-          <input type="password" class="form-input" id="userPass" ${isEdit ? '' : 'required'}>
+          <input type="password" class="form-input" id="userPass" ${isEdit ? '' : 'required'} minlength="8" maxlength="128">
+          <div id="pwdStrengthIndicator" style="font-size: 11px; margin-top: 4px; min-height: 14px;"></div>
         </div>
         <div class="form-group">
           <label class="form-label">Role</label>
@@ -850,7 +890,7 @@ function showUserForm(currentUser, categories, editing) {
       </div>
     </form>
   `
-  openModal(isEdit ? `Edit User · ${editing.name}` : 'Tambah User Baru', body, { size: 'lg' })
+  openModal(isEdit ? `Edit User · ${sanitizeHtml(editing.name)}` : 'Tambah User Baru', body, { size: 'lg' })
 
   // Update perm count + super admin info
   function updatePermUI() {
@@ -861,6 +901,17 @@ function showUserForm(currentUser, categories, editing) {
     const count = document.querySelectorAll('[data-perm-sub]:checked').length
     document.getElementById('permCount').textContent = count
   }
+
+  // Password strength indicator
+  const passInput = document.getElementById('userPass')
+  const strengthDiv = document.getElementById('pwdStrengthIndicator')
+  passInput.addEventListener('input', () => {
+    const pwd = passInput.value
+    if (!pwd) { strengthDiv.innerHTML = ''; return }
+    const strength = checkPasswordStrength(pwd)
+    strengthDiv.innerHTML = `<span style="color: ${strength.color}">${strength.label}</span> (${pwd.length} karakter)`
+  })
+
   document.getElementById('userRole').addEventListener('change', updatePermUI)
   document.querySelectorAll('[data-perm-sub]').forEach((cb) => {
     cb.addEventListener('change', updatePermUI)
@@ -887,7 +938,13 @@ function showUserForm(currentUser, categories, editing) {
         permissions: role === 'super_admin' ? [] : perms,
       }
       const passVal = document.getElementById('userPass').value
-      if (passVal) payload.password = passVal
+      if (passVal) {
+        if (passVal.length < 8) throw new Error('Password minimal 8 karakter.')
+        payload.password = passVal
+      }
+
+      // Validate email format
+      if (!validateEmail(payload.email)) throw new Error('Format email tidak valid.')
 
       if (isEdit) {
         await Api.updateUser(editing.id, payload)
@@ -898,7 +955,7 @@ function showUserForm(currentUser, categories, editing) {
       const content = document.getElementById('tabContent')
       renderUsersTab(content, currentUser)
     } catch (err) {
-      alert(err.message)
+      alert(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -962,7 +1019,7 @@ async function renderExcelTab(container, user) {
     try {
       await ExcelIO.export(user)
     } catch (e) {
-      alert('Gagal export: ' + e.message)
+      alert('Gagal export: ' + safeErrorMessage(e))
     } finally {
       btn.disabled = false
       btn.innerHTML = '📥 Download Excel'
@@ -976,7 +1033,7 @@ async function renderExcelTab(container, user) {
     try {
       await ExcelIO.downloadTemplate()
     } catch (e) {
-      alert('Gagal membuat contoh: ' + e.message)
+      alert('Gagal membuat contoh: ' + safeErrorMessage(e))
     } finally {
       btn.disabled = false
       btn.innerHTML = '⬇️ Download Contoh'
@@ -996,14 +1053,14 @@ async function renderExcelTab(container, user) {
           <div class="alert alert-warning mt-2">
             <b>⚠️ ${result.errors.length} baris dilewati:</b>
             <ul style="margin: 6px 0 0 16px; max-height: 120px; overflow-y: auto;">
-              ${result.errors.map((er) => `<li>Baris ${er.row}: ${er.message}</li>`).join('')}
+              ${result.errors.map((er) => `<li>Baris ${er.row}: ${sanitizeHtml(er.message)}</li>`).join('')}
             </ul>
           </div>
         `
       }
       resultDiv.innerHTML = html
     } catch (e) {
-      resultDiv.innerHTML = `<div class="alert alert-error">❌ ${e.message}</div>`
+      resultDiv.innerHTML = `<div class="alert alert-error">❌ ${safeErrorMessage(e)}</div>`
     }
     e.target.value = ''
   })
@@ -1080,7 +1137,7 @@ Contoh pertanyaan:
       typing.remove()
       const errMsg = document.createElement('div')
       errMsg.className = 'chat-msg assistant'
-      errMsg.textContent = '⚠️ ' + e.message
+      errMsg.textContent = '⚠️ ' + safeErrorMessage(e)
       messages.appendChild(errMsg)
     } finally {
       sendBtn.disabled = false
@@ -1125,12 +1182,12 @@ async function renderSettingsTab(container, user) {
       <h3>🤖 Pengaturan Groq AI</h3>
       <p class="desc">
         Sediakan API Key Groq untuk mengaktifkan fitur chat AI yang menjawab pertanyaan berdasarkan database.
-        Dapatkan API Key gratis di <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>.
+        Dapatkan API Key gratis di <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com/keys</a>.
       </p>
       <div class="form-group">
         <label class="form-label">Groq API Key</label>
         <div class="api-key-input-group">
-          <input type="password" class="form-input" id="groqApiKey" placeholder="gsk_..." value="${settings.groq_api_key || ''}">
+          <input type="password" class="form-input" id="groqApiKey" placeholder="gsk_..." value="${sanitizeAttr(settings.groq_api_key || '')}" maxlength="100">
           <button type="button" class="toggle-btn" id="toggleApiKey">👁️ Lihat</button>
         </div>
         <div class="text-tiny text-muted mt-2">
@@ -1157,15 +1214,15 @@ async function renderSettingsTab(container, user) {
       <p class="desc">Atur teks heading yang muncul di 3 baris pertama file Excel hasil export.</p>
       <div class="form-group">
         <label class="form-label">Baris Heading 1 (judul utama)</label>
-        <input class="form-input" id="excelLine1" value="${settings.excel_heading_line1 || ''}" placeholder="PEMERINTAH KABUPATEN INDRAGIRI HULU">
+        <input class="form-input" id="excelLine1" maxlength="100" value="${sanitizeAttr(settings.excel_heading_line1 || '')}" placeholder="PEMERINTAH KABUPATEN INDRAGIRI HULU">
       </div>
       <div class="form-group">
         <label class="form-label">Baris Heading 2 (dinas)</label>
-        <input class="form-input" id="excelLine2" value="${settings.excel_heading_line2 || ''}" placeholder="DINAS KESEHATAN">
+        <input class="form-input" id="excelLine2" maxlength="100" value="${sanitizeAttr(settings.excel_heading_line2 || '')}" placeholder="DINAS KESEHATAN">
       </div>
       <div class="form-group">
         <label class="form-label">Baris Heading 3 (sub-judul data)</label>
-        <input class="form-input" id="excelLine3" value="${settings.excel_heading_line3 || ''}" placeholder="DATA KASUS KESEHATAN KABUPATEN INDRAGIRI HULU">
+        <input class="form-input" id="excelLine3" maxlength="100" value="${sanitizeAttr(settings.excel_heading_line3 || '')}" placeholder="DATA KASUS KESEHATAN KABUPATEN INDRAGIRI HULU">
       </div>
       <div class="preview">
         <p class="line1" id="preview1">(kosong)</p>
@@ -1180,7 +1237,7 @@ async function renderSettingsTab(container, user) {
       <h3>🌐 Nama Situs</h3>
       <p class="desc">Nama situs yang muncul di judul browser (tab title).</p>
       <div style="display: flex; gap: 8px;">
-        <input class="form-input" id="siteName" value="${settings.site_name || ''}">
+        <input class="form-input" id="siteName" maxlength="100" value="${sanitizeAttr(settings.site_name || '')}">
         <button class="btn btn-primary" id="saveSiteName">Simpan</button>
       </div>
     </div>
@@ -1218,7 +1275,7 @@ async function renderSettingsTab(container, user) {
         groq_model: document.getElementById('groqModel').value,
       })
       showAlert('Pengaturan AI berhasil disimpan.')
-    } catch (e) { alert(e.message) }
+    } catch (e) { alert(safeErrorMessage(e)) }
     finally {
       btn.disabled = false
       btn.textContent = 'Simpan Pengaturan AI'
@@ -1236,7 +1293,7 @@ async function renderSettingsTab(container, user) {
         excel_heading_line3: document.getElementById('excelLine3').value,
       })
       showAlert('Heading Excel berhasil disimpan.')
-    } catch (e) { alert(e.message) }
+    } catch (e) { alert(safeErrorMessage(e)) }
     finally {
       btn.disabled = false
       btn.textContent = 'Simpan Heading Excel'
@@ -1250,7 +1307,7 @@ async function renderSettingsTab(container, user) {
     try {
       await Api.updateSettings({ site_name: document.getElementById('siteName').value })
       showAlert('Nama situs berhasil disimpan.')
-    } catch (e) { alert(e.message) }
+    } catch (e) { alert(safeErrorMessage(e)) }
     finally {
       btn.disabled = false
       btn.textContent = 'Simpan'

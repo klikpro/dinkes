@@ -11,8 +11,21 @@ window.CONFIG = {
   // ===========================================================================
   // Project URL dan anon public key dari Supabase Dashboard
   // Dashboard → Settings → API
+  // CATATAN: Kredensial admin hanya ada di SQL seed data, TIDAK di client-side code.
   SUPABASE_URL: 'https://aqxllawmskworpovcofq.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_9RzSGDpI_mxUZDY7FRL6_Q_xHXS8aLh',
+
+  // ===========================================================================
+  // AUTH LOGIN EDGE FUNCTION URL (REQUIRED — see README "Langkah 6.5")
+  // ===========================================================================
+  // Login MUST go through this Edge Function. It verifies the password
+  // server-side and mints a JWT signed with the project's real JWT secret
+  // (kept only in the Edge Function's environment, never in this file).
+  // Without this, login cannot produce a token that Supabase's RLS
+  // (`to authenticated` policies) will actually accept — writes will fail
+  // with "permission denied" no matter what schema you run.
+  // Format: https://aqxllawmskworpovcofq.supabase.co/functions/v1/auth-login
+  AUTH_LOGIN_EDGE_FUNCTION_URL: '',
 
   // ===========================================================================
   // GROQ EDGE FUNCTION URL
@@ -57,12 +70,6 @@ window.CONFIG = {
   // ===========================================================================
   // Sesi disimpan di localStorage agar tetap login setelah refresh browser
   SESSION_KEY: 'peta_kesehatan_session',
-  SESSION_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000, // 7 hari
-
-  // ===========================================================================
-  // DEFAULT ADMIN
-  // ===========================================================================
-  // Hanya untuk referensi. Password HARUS diganti setelah login pertama.
-  DEFAULT_ADMIN_EMAIL: 'admin@dinkes.go.id',
-  DEFAULT_ADMIN_PASSWORD: 'admin123',
+  SESSION_MAX_AGE_MS: 24 * 60 * 60 * 1000, // 24 jam (diperbarui dari 7 hari untuk keamanan)
+  SESSION_FINGERPRINT_KEY: 'peta_kesehatan_fingerprint',
 }

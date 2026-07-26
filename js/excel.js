@@ -9,6 +9,21 @@
 
 const ExcelIO = {
   /**
+   * Neutralize CSV/Excel formula injection. If a cell's text starts with
+   * =, +, -, @, tab, or CR — characters Excel/Sheets/LibreOffice treat as
+   * the start of a formula — prefix it with a leading apostrophe so it's
+   * always rendered as plain text instead of being evaluated. Without this,
+   * a "Catatan" (notes) field like `=HYPERLINK("http://evil","click")` or
+   * a DDE payload entered by any user with case-input permission would be
+   * evaluated when a super_admin later opens the exported file in Excel.
+   */
+  sanitizeCell(value) {
+    if (typeof value !== 'string') return value
+    if (/^[=+\-@\t\r]/.test(value)) return "'" + value
+    return value
+  },
+
+  /**
    * Buat & unduh file Excel CONTOH/TEMPLATE untuk import, dibuat langsung
    * dari data Kecamatan dan Kategori/Subkategori yang SEDANG ADA di database
    * saat tombol diklik — sehingga selalu sinkron dengan data terbaru,
@@ -135,15 +150,15 @@ const ExcelIO = {
     ]
 
     const dataRows = visibleCases.map((c) => [
-      c.district.name,
+      this.sanitizeCell(c.district.name),
       c.district.latitude,
       c.district.longitude,
-      c.subcategory.category.name,
-      c.subcategory.name,
-      c.subcategory.unit || '',
+      this.sanitizeCell(c.subcategory.category.name),
+      this.sanitizeCell(c.subcategory.name),
+      this.sanitizeCell(c.subcategory.unit || ''),
       c.value,
-      c.period || '',
-      c.notes || '',
+      this.sanitizeCell(c.period || ''),
+      this.sanitizeCell(c.notes || ''),
       c.updated_at ? new Date(c.updated_at).toISOString().slice(0, 19).replace('T', ' ') : '',
     ])
 

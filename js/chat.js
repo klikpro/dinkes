@@ -43,7 +43,7 @@ const Chat = {
     overlay.className = 'chat-widget-overlay'
     overlay.id = 'chatWidgetOverlay'
     overlay.innerHTML = `
-      <div class="chat-widget" onclick="event.stopPropagation()">
+      <div class="chat-widget" id="chatWidgetInner">
         <div class="chat-widget-head">
           <div class="info">
             <div class="avatar">🤖</div>
@@ -58,13 +58,18 @@ const Chat = {
           <div class="chat-msg assistant">Selamat datang di Asisten AI Dinkes Inhu. Saya siap menjawab pertanyaan Anda tentang data kesehatan di Kabupaten Indragiri Hulu berdasarkan database terkini. Apa yang ingin Anda ketahui?</div>
         </div>
         <div class="chat-widget-foot">
-          <input type="text" id="chatInput" placeholder="Ketik pertanyaan tentang data kesehatan...">
+          <input type="text" id="chatInput" maxlength="500" placeholder="Ketik pertanyaan tentang data kesehatan...">
           <button id="chatSendBtn">Kirim</button>
         </div>
       </div>
     `
     overlay.addEventListener('click', () => this.close())
     container.appendChild(overlay)
+    // Same CSP note as tabs.js openModal(): inline onclick attributes are
+    // blocked by script-src (no 'unsafe-inline'), so stopPropagation must be
+    // wired via addEventListener or every click inside the widget would
+    // bubble to the overlay and close the chat immediately.
+    document.getElementById('chatWidgetInner').addEventListener('click', (e) => e.stopPropagation())
 
     document.getElementById('chatCloseBtn').addEventListener('click', () => this.close())
     document.getElementById('chatSendBtn').addEventListener('click', () => this.send(mode))
@@ -86,6 +91,16 @@ const Chat = {
     const body = document.getElementById('chatWidgetBody')
     const message = input.value.trim()
     if (!message) return
+
+    // Validate message length (max 500 chars for safety)
+    if (message.length > 500) {
+      const errMsg = document.createElement('div')
+      errMsg.className = 'chat-msg assistant'
+      errMsg.textContent = 'Pesan terlalu panjang (maksimal 500 karakter).'
+      body.appendChild(errMsg)
+      body.scrollTop = body.scrollHeight
+      return
+    }
 
     // Append user message
     const userMsg = document.createElement('div')
@@ -160,8 +175,15 @@ const Chat = {
       return d.answer
     } else {
       // ====== Mode B: Client-side fallback (KURANG AMAN) ======
-      // Ambil API key dari settings (hanya super_admin yang bisa lihat groq_api_key)
-      const settings = await Api.getSettings()
+      // Ambil API key dari settings — gunakan getSettingsRaw() agar groq_api_key tidak di-mask
+      // (public_settings view akan mengembalikan "***HIDDEN***" untuk non-super_admin)
+      let settings
+      try {
+        settings = await Api.getSettingsRaw()
+      } catch (e) {
+        // If raw settings not accessible (non-super_admin), try masked view
+        settings = await Api.getSettings()
+      }
       const apiKey = settings.groq_api_key
       if (!apiKey) {
         throw new Error(

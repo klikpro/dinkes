@@ -114,7 +114,7 @@ async function loadPublicMapData() {
     document.getElementById('mapLoading').innerHTML = `
       <div>
         <p style="color: #fca5a5; margin-bottom: 8px;">Gagal memuat data peta</p>
-        <p style="font-size: 12px; opacity: 0.7;">${e.message}</p>
+        <p style="font-size: 12px; opacity: 0.7;">${safeErrorMessage(e)}</p>
         <p style="font-size: 11px; opacity: 0.5; margin-top: 12px;">
           Pastikan Anda sudah menjalankan sql/schema.sql di Supabase SQL Editor.
         </p>
@@ -188,7 +188,7 @@ function buildHoverSummaryHtml(district) {
     .map(([subId, v]) => {
       const sc = publicMapData.subcategories.find((s) => s.id === subId)
       if (!sc) return null
-      return { name: sc.name, unit: sc.unit || '', value: v.value, color: sc.category.color || '#065f46' }
+      return { name: sc.name, unit: sc.unit || '', value: v.value, color: safeColor(sc.category.color) }
     })
     .filter(Boolean)
     .sort((a, b) => b.value - a.value)
@@ -201,8 +201,8 @@ function buildHoverSummaryHtml(district) {
             (e) => `
         <div class="hs-row">
           <span class="hs-dot" style="background:${e.color}"></span>
-          <span class="hs-name">${e.name}</span>
-          <span class="hs-value">${e.value}${e.unit ? ' ' + e.unit : ''}</span>
+          <span class="hs-name">${sanitizeHtml(e.name)}</span>
+          <span class="hs-value">${sanitizeHtml(e.value)}${e.unit ? ' ' + sanitizeHtml(e.unit) : ''}</span>
         </div>`
           )
           .join('')
@@ -210,11 +210,24 @@ function buildHoverSummaryHtml(district) {
 
   return `
     <div class="hs-wrap">
-      <div class="hs-title">📍 ${district.name}</div>
+      <div class="hs-title">📍 ${sanitizeHtml(district.name)}</div>
       ${rowsHtml}
       <div class="hs-hint">Klik untuk lihat detail lengkap →</div>
     </div>
   `
+}
+
+/**
+ * Validate that a color value is a plain #rgb/#rrggbb hex color before
+ * interpolating it into a `style="..."` attribute. Category colors are only
+ * meant to be set via the <input type="color"> picker in the dashboard, but
+ * this is rendered on the fully PUBLIC map page — if the stored value were
+ * ever anything other than a clean hex color (bad data, a future bug, or a
+ * compromised admin session), an unvalidated value could break out of the
+ * style attribute in every visitor's browser. Falls back to a safe default.
+ */
+function safeColor(value) {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value || '') ? value : '#065f46'
 }
 
 function riskColor(v, th1, th2) {
@@ -249,9 +262,9 @@ function showDistrictDetail(district) {
   const sectionsHtml = Object.values(byCat)
     .map(({ cat, items }) => `
       <div class="detail-section">
-        <h3 style="color: ${cat.color || '#065f46'}">
-          <span class="color-dot" style="background: ${cat.color || '#065f46'}"></span>
-          ${cat.name}
+        <h3 style="color: ${safeColor(cat.color)}">
+          <span class="color-dot" style="background: ${safeColor(cat.color)}"></span>
+          ${sanitizeHtml(cat.name)}
         </h3>
         <div class="detail-grid">
           ${items
@@ -259,10 +272,10 @@ function showDistrictDetail(district) {
               const v = district.values[sc.id]
               return `
               <div class="detail-stat">
-                <div class="label">${sc.name}</div>
+                <div class="label">${sanitizeHtml(sc.name)}</div>
                 <div class="value">
-                  ${v.value}
-                  <span class="unit">${sc.unit || ''}</span>
+                  ${sanitizeHtml(v.value)}
+                  <span class="unit">${sanitizeHtml(sc.unit || '')}</span>
                 </div>
                 <div class="updated">Update: ${fmtDateSmall(v.updatedAt)}</div>
               </div>`
@@ -285,7 +298,7 @@ function showDistrictDetail(district) {
       <div class="detail-panel">
         <div class="detail-head">
           <button class="detail-close" id="detailCloseBtn">×</button>
-          <h2>📍 Kecamatan ${district.name}</h2>
+          <h2>📍 Kecamatan ${sanitizeHtml(district.name)}</h2>
           <p>Kabupaten Indragiri Hulu, Provinsi Riau</p>
           ${
             district.lastUpdate

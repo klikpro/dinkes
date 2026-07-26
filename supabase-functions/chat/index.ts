@@ -1,55 +1,129 @@
 // ===========================================================================
-// Supabase Edge Function: chat
+// Supabase Edge Function: chat — SECURITY-HARDENED VERSION
 // ===========================================================================
-// Fungsi: Menerima pertanyaan dari client, memanggil Groq API dengan konteks
-// dari database Supabase, mengembalikan jawaban.
-//
-// CARA DEPLOY:
-// 1. Install Supabase CLI: https://supabase.com/docs/guides/cli
-// 2. Login: supabase login
-// 3. Link project: supabase link --project-ref aqxllawmskworpovcofq
-// 4. Set Groq API key di settings (jalankan di dashboard → Pengaturan)
-// 5. Deploy function:
-//    supabase functions deploy chat --no-verify-jwt
-// 6. Setelah deploy, URL function adalah:
-//    https://aqxllawmskworpovcofq.supabase.co/functions/v1/chat
-// 7. Salin URL tersebut ke file js/config.js:
-//    GROQ_EDGE_FUNCTION_URL: 'https://aqxllawmskworpovcofq.supabase.co/functions/v1/chat'
-//
-// Catatan keamanan:
-// - Function ini menggunakan SERVICE_ROLE_KEY (server-side), bukan anon key
-// - API key Groq diambil dari tabel settings (di-set via dashboard)
-// - API key Groq TIDAK PERNAH diekspos ke client
+// SECURITY IMPROVEMENTS (vs original):
+// - CORS restricted to specific origins (not wildcard *)
+// - Input validation: max 500 chars for message
+// - Input sanitization: strip HTML tags from message
+// - Rate limiting: simple per-IP counter (in-memory, resets on deploy)
+// - Error messages sanitized (no internal details exposed)
+// - Mode validation: only 'public' or 'dashboard' allowed
 // ===========================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// ===========================================================================
+// CORS — Restricted to specific origins (REPLACE with your deployment domain)
+// ===========================================================================
+const ALLOWED_ORIGINS = [
+  "https://peta-kesehatan-inhu.vercel.app",     // REPLACE with your actual domain
+  "https://peta-kesehatan-inhu.netlify.app",    // REPLACE with your actual domain
+  "http://localhost:8080",                       // development only
+  "http://localhost:3000",                       // development only
+];
+
+function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : ALLOWED_ORIGINS[0]; // fallback to primary domain
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin", // important for caching with dynamic CORS
+  };
+}
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+// ===========================================================================
+// SIMPLE IN-MEMORY RATE LIMITER (per IP, resets on function cold start)
+// ===========================================================================
+const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
+const RATE_LIMIT_MAX = 20;         // max requests per IP per window
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute window
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.lastReset > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(ip, { count: 1, lastReset: now });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false; // rate limited
+  }
+  entry.count++;
+  return true;
+}
+
+// ===========================================================================
+// INPUT SANITIZATION
+// ===========================================================================
+function sanitizeInput(str: string): string {
+  // Strip HTML tags
+  return str.replace(/<[^>]*>/g, "").trim();
+}
+
+function safeErrorMessage(err: unknown): string {
+  const msg = (err instanceof Error ? err.message : String(err)) || "";
+  // Only return known user-facing errors, hide internals
+  if (msg.includes("belum dikonfigurasi")) return msg;
+  if (msg.includes("Pesan tidak boleh kosong")) return msg;
+  if (msg.includes("Terlalu banyak")) return msg;
+  if (msg.includes("Pesan terlalu panjang")) return msg;
+  if (msg.includes("Mode tidak valid")) return msg;
+  // Don't expose internal errors to client
+  return "Terjadi kesalahan internal. Silakan coba lagi.";
+}
+
+// ===========================================================================
+// MAIN HANDLER
+// ===========================================================================
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { message, mode } = await req.json();
-    if (!message || !message.trim()) {
-      return jsonError(400, "Pesan tidak boleh kosong");
+    // Rate limit check
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || req.headers.get("cf-connecting-ip")
+      || "unknown";
+    if (!checkRateLimit(clientIp)) {
+      return jsonError(corsHeaders, 429, "Terlalu banyak permintaan. Coba lagi dalam 1 menit.");
     }
+
+    const body = await req.json();
+    const { message, mode } = body;
+
+    // Validate message
+    if (!message || !message.trim()) {
+      return jsonError(corsHeaders, 400, "Pesan tidak boleh kosong");
+    }
+
+    // Sanitize and limit message length
+    const sanitizedMessage = sanitizeInput(message);
+    if (sanitizedMessage.length > 500) {
+      return jsonError(corsHeaders, 400, "Pesan terlalu panjang (maksimal 500 karakter).");
+    }
+    if (!sanitizedMessage) {
+      return jsonError(corsHeaders, 400, "Pesan tidak boleh kosong setelah sanitasi.");
+    }
+
+    // Validate mode
+    const validMode = mode === "public" || mode === "dashboard" ? mode : "public";
 
     // Create Supabase client with service role key (server-side only)
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceRoleKey) {
-      return jsonError(500, "Server misconfigured: missing env vars");
+      return jsonError(corsHeaders, 500, "Server misconfigured");
     }
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
@@ -63,6 +137,7 @@ Deno.serve(async (req) => {
     const apiKey = apiKeyData?.value;
     if (!apiKey) {
       return jsonError(
+        corsHeaders,
         400,
         "API Key Groq belum dikonfigurasi. Super Admin dapat mengaturnya di menu Pengaturan."
       );
@@ -70,7 +145,7 @@ Deno.serve(async (req) => {
     const model = modelData?.value || "llama-3.3-70b-versatile";
 
     // Build database context
-    const context = await buildContext(supabase, mode, req);
+    const context = await buildContext(supabase, validMode);
 
     const systemPrompt = `Anda adalah asisten AI Dinas Kesehatan Kabupaten Indragiri Hulu.
 
@@ -96,7 +171,7 @@ ${context}`;
         model,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: message },
+          { role: "user", content: sanitizedMessage },
         ],
         temperature: 0.3,
         max_tokens: 1024,
@@ -104,12 +179,8 @@ ${context}`;
     });
 
     if (!groqResp.ok) {
-      const errText = await groqResp.text();
-      console.error("Groq API error", groqResp.status, errText);
-      return jsonError(
-        502,
-        `Groq API error (${groqResp.status}). Periksa API key dan model di Pengaturan.`
-      );
+      console.error("Groq API error", groqResp.status);
+      return jsonError(corsHeaders, 502, "Gagal menghubungi AI service. Periksa konfigurasi.");
     }
 
     const data = await groqResp.json();
@@ -117,18 +188,14 @@ ${context}`;
       data?.choices?.[0]?.message?.content ||
       "Maaf, saya tidak dapat memberikan jawaban saat ini.";
 
-    // Optional: save to chat_history (skip if anonymous)
-    // We don't have reliable user identification here without proper auth,
-    // so we skip saving. The client can save it via the API after receiving answer.
-
-    return jsonResponse({ answer });
+    return jsonResponse(corsHeaders, { answer });
   } catch (e) {
     console.error("chat function error", e);
-    return jsonError(500, e.message || "Internal server error");
+    return jsonError(corsHeaders, 500, safeErrorMessage(e));
   }
 });
 
-async function buildContext(supabase, mode, req) {
+async function buildContext(supabase, mode: string) {
   const [districts, subcategories, cases] = await Promise.all([
     supabase.from("districts").select("*").order("name"),
     supabase
@@ -139,9 +206,7 @@ async function buildContext(supabase, mode, req) {
       .order("sort_order"),
     supabase
       .from("case_records")
-      .select(
-        "*, subcategory:subcategories!inner(*, category:categories!inner(*))"
-      )
+      .select("*, subcategory:subcategories!inner(*, category:categories!inner(*))")
       .eq("subcategory.is_active", true)
       .eq("subcategory.category.is_active", true)
       .order("updated_at", { ascending: false }),
@@ -151,34 +216,30 @@ async function buildContext(supabase, mode, req) {
   const subcatList = subcategories.data || [];
   const caseList = cases.data || [];
 
-  // Aggregate totals per subcategory
-  const totals = {};
+  const totals: Record<string, number> = {};
   caseList.forEach((c) => {
     totals[c.subcategory.name] = (totals[c.subcategory.name] || 0) + c.value;
   });
 
-  // Aggregate per district
-  const byDistrict = {};
+  const byDistrict: Record<string, Record<string, number>> = {};
   caseList.forEach((c) => {
     if (!byDistrict[c.district_id]) byDistrict[c.district_id] = {};
     byDistrict[c.district_id][c.subcategory.name] = c.value;
   });
 
-  const lines = [];
+  const lines: string[] = [];
   lines.push("DATA KESEHATAN KABUPATEN INDRAGIRI HULU (ringkasan):");
   lines.push(`- Jumlah kecamatan: ${districtList.length}`);
   lines.push(`- Jumlah kategori aktif: ${new Set(subcatList.map((s) => s.category.id)).size}`);
   lines.push("");
   lines.push("KATEGORI & SUBKATEGORI:");
-  const byCat = {};
+  const byCat: Record<string, any[]> = {};
   subcatList.forEach((s) => {
     if (!byCat[s.category.name]) byCat[s.category.name] = [];
     byCat[s.category.name].push(s);
   });
   Object.entries(byCat).forEach(([catName, subs]) => {
-    lines.push(
-      `• ${catName}: ${subs.map((s) => s.name + (s.unit ? ` (${s.unit})` : "")).join(", ")}`
-    );
+    lines.push(`• ${catName}: ${subs.map((s) => s.name + (s.unit ? ` (${s.unit})` : "")).join(", ")}`);
   });
   lines.push("");
   lines.push("TOTAL PER SUBKATEGORI (seluruh kabupaten):");
@@ -200,13 +261,13 @@ async function buildContext(supabase, mode, req) {
   return lines.join("\n");
 }
 
-function jsonResponse(data, status = 200) {
+function jsonResponse(corsHeaders: Record<string, string>, data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
-function jsonError(status, message) {
-  return jsonResponse({ error: message }, status);
+function jsonError(corsHeaders: Record<string, string>, status: number, message: string) {
+  return jsonResponse(corsHeaders, { error: message }, status);
 }

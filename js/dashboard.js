@@ -29,12 +29,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('roleChip').textContent =
     currentUser.role === 'super_admin' ? '👑 Super Admin' : '👤 Operator'
 
+  // WAJIB ganti password default sebelum bisa memakai dashboard
+  if (!currentUser.password_changed_at) {
+    showForcedPasswordChange()
+    return
+  }
+
   // Logout
   document.getElementById('logoutBtn').addEventListener('click', () => {
     if (confirm('Yakin ingin keluar?')) {
       logout()
       window.location.href = 'login.html'
     }
+  })
+
+  // Ganti password (voluntari, kapan saja)
+  document.getElementById('changePwdBtn').addEventListener('click', () => {
+    openChangePasswordModal()
   })
 
   // Render tab bar
@@ -114,7 +125,149 @@ function selectTab(key) {
 
   if (fnMap[key]) {
     fnMap[key](content, currentUser).catch((e) => {
-      content.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`
+      content.innerHTML = `<div class="alert alert-error">Error: ${safeErrorMessage(e)}</div>`
     })
   }
+}
+
+/**
+ * Modal ganti password — dipakai kapan saja lewat tombol "Ganti Password".
+ * (Untuk paksaan ganti password default di login pertama, lihat
+ * showForcedPasswordChange() di bawah, yang memblokir seluruh dashboard.)
+ */
+function openChangePasswordModal() {
+  const body = `
+    <form id="pwdForm">
+      <div class="form-group">
+        <label class="form-label">Password Saat Ini</label>
+        <input type="password" class="form-input" id="pwdOld" required maxlength="128" autocomplete="current-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password Baru (min. 8 karakter)</label>
+        <input type="password" class="form-input" id="pwdNew" required minlength="8" maxlength="128" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ulangi Password Baru</label>
+        <input type="password" class="form-input" id="pwdNew2" required minlength="8" maxlength="128" autocomplete="new-password">
+      </div>
+      <div id="pwdModalError" class="alert alert-error hidden"></div>
+      <div class="modal-footer" style="margin: 16px -20px -20px;">
+        <button type="button" class="btn btn-secondary" id="pwdCancel">Batal</button>
+        <button type="submit" class="btn btn-primary" id="pwdSubmit">Simpan</button>
+      </div>
+    </form>
+  `
+  openModal('Ganti Password', body)
+
+  document.getElementById('pwdCancel').addEventListener('click', closeModal)
+  document.getElementById('pwdForm').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const errDiv = document.getElementById('pwdModalError')
+    errDiv.classList.add('hidden')
+    const oldPwd = document.getElementById('pwdOld').value
+    const newPwd = document.getElementById('pwdNew').value
+    const newPwd2 = document.getElementById('pwdNew2').value
+
+    if (newPwd !== newPwd2) {
+      errDiv.textContent = 'Konfirmasi password baru tidak cocok.'
+      errDiv.classList.remove('hidden')
+      return
+    }
+    if (newPwd.length < 8) {
+      errDiv.textContent = 'Password baru minimal 8 karakter.'
+      errDiv.classList.remove('hidden')
+      return
+    }
+
+    const btn = document.getElementById('pwdSubmit')
+    btn.disabled = true
+    btn.innerHTML = '<span class="spinner"></span> Menyimpan...'
+    try {
+      await Api.changeOwnPassword(oldPwd, newPwd)
+      closeModal()
+      alert('Password berhasil diubah. Silakan login kembali dengan password baru.')
+      logout()
+      window.location.href = 'login.html'
+    } catch (err) {
+      errDiv.textContent = safeErrorMessage(err)
+      errDiv.classList.remove('hidden')
+      btn.disabled = false
+      btn.textContent = 'Simpan'
+    }
+  })
+}
+
+/**
+ * Blokir akses dashboard sampai password default diganti.
+ * (password_changed_at = NULL berarti masih pakai password default/sementara.)
+ */
+function showForcedPasswordChange() {
+  document.getElementById('tabBar').innerHTML = ''
+  const content = document.getElementById('tabContent')
+  content.innerHTML = `
+    <div class="forced-pwd-wrap" style="max-width:420px;margin:60px auto;padding:24px;border-radius:12px;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+      <h2 style="margin-top:0;">🔒 Ganti Password</h2>
+      <p style="color:#64748b;font-size:14px;">Akun Anda masih menggunakan password default/sementara.
+      Untuk keamanan, silakan buat password baru sebelum melanjutkan.</p>
+      <form id="forcedPwdForm">
+        <div class="form-group">
+          <label class="form-label">Password Saat Ini</label>
+          <input type="password" class="form-input" id="fpOld" required maxlength="128" autocomplete="current-password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password Baru (min. 8 karakter)</label>
+          <input type="password" class="form-input" id="fpNew" required minlength="8" maxlength="128" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ulangi Password Baru</label>
+          <input type="password" class="form-input" id="fpNew2" required minlength="8" maxlength="128" autocomplete="new-password">
+        </div>
+        <div id="forcedPwdError" class="alert alert-error hidden"></div>
+        <div class="modal-footer" style="padding:0;margin-top:8px;">
+          <button type="button" class="btn btn-secondary" id="forcedPwdLogout">Keluar</button>
+          <button type="submit" class="btn btn-primary" id="forcedPwdSubmit">Simpan Password Baru</button>
+        </div>
+      </form>
+    </div>
+  `
+
+  document.getElementById('forcedPwdLogout').addEventListener('click', () => {
+    logout()
+    window.location.href = 'login.html'
+  })
+
+  document.getElementById('forcedPwdForm').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const errDiv = document.getElementById('forcedPwdError')
+    errDiv.classList.add('hidden')
+    const oldPwd = document.getElementById('fpOld').value
+    const newPwd = document.getElementById('fpNew').value
+    const newPwd2 = document.getElementById('fpNew2').value
+
+    if (newPwd !== newPwd2) {
+      errDiv.textContent = 'Konfirmasi password baru tidak cocok.'
+      errDiv.classList.remove('hidden')
+      return
+    }
+    if (newPwd.length < 8) {
+      errDiv.textContent = 'Password baru minimal 8 karakter.'
+      errDiv.classList.remove('hidden')
+      return
+    }
+
+    const btn = document.getElementById('forcedPwdSubmit')
+    btn.disabled = true
+    btn.innerHTML = '<span class="spinner"></span> Menyimpan...'
+    try {
+      await Api.changeOwnPassword(oldPwd, newPwd)
+      alert('Password berhasil diubah. Silakan login kembali.')
+      logout()
+      window.location.href = 'login.html'
+    } catch (err) {
+      errDiv.textContent = safeErrorMessage(err)
+      errDiv.classList.remove('hidden')
+      btn.disabled = false
+      btn.textContent = 'Simpan Password Baru'
+    }
+  })
 }
