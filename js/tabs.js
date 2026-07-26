@@ -241,7 +241,7 @@ async function renderCasesTab(container, user) {
         try {
           await Api.deleteCase(b.dataset.del)
           renderCasesTab(container, user)
-        } catch (e) { alert(safeErrorMessage(e)) }
+        } catch (e) { showToast(safeErrorMessage(e)) }
       })
     })
   }
@@ -323,7 +323,7 @@ function showCaseForm(user, categories, districts, allowedSubIds, editing) {
       const content = document.getElementById('tabContent')
       renderCasesTab(content, user)
     } catch (err) {
-      alert(safeErrorMessage(err))
+      showToast(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -417,7 +417,7 @@ async function renderCategoriesTab(container, user) {
       try {
         await Api.updateCategory(c.id, { is_active: !c.is_active })
         renderCategoriesTab(container, user)
-      } catch (e) { alert(safeErrorMessage(e)) }
+      } catch (e) { showToast(safeErrorMessage(e)) }
     })
   })
   document.querySelectorAll('[data-del-cat]').forEach((b) => {
@@ -427,7 +427,7 @@ async function renderCategoriesTab(container, user) {
       try {
         await Api.deleteCategory(b.dataset.delCat)
         renderCategoriesTab(container, user)
-      } catch (e) { alert(safeErrorMessage(e)) }
+      } catch (e) { showToast(safeErrorMessage(e)) }
     })
   })
   document.querySelectorAll('[data-add-sub]').forEach((b) => {
@@ -459,7 +459,7 @@ async function renderCategoriesTab(container, user) {
           await Api.updateSubcategory(b.dataset.toggleSub, { is_active: !sub.is_active })
         }
         renderCategoriesTab(container, user)
-      } catch (e) { alert(safeErrorMessage(e)) }
+      } catch (e) { showToast(safeErrorMessage(e)) }
     })
   })
   document.querySelectorAll('[data-del-sub]').forEach((b) => {
@@ -468,7 +468,7 @@ async function renderCategoriesTab(container, user) {
       try {
         await Api.deleteSubcategory(b.dataset.delSub)
         renderCategoriesTab(container, user)
-      } catch (e) { alert(safeErrorMessage(e)) }
+      } catch (e) { showToast(safeErrorMessage(e)) }
     })
   })
 }
@@ -539,7 +539,7 @@ function showCategoryForm(user, editing) {
       const content = document.getElementById('tabContent')
       renderCategoriesTab(content, user)
     } catch (err) {
-      alert(safeErrorMessage(err))
+      showToast(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -605,7 +605,7 @@ function showSubcategoryForm(user, cat, editing) {
       const content = document.getElementById('tabContent')
       renderCategoriesTab(content, user)
     } catch (err) {
-      alert(safeErrorMessage(err))
+      showToast(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -674,7 +674,7 @@ async function renderDistrictsTab(container, user) {
       try {
         await Api.deleteDistrict(b.dataset.del)
         renderDistrictsTab(container, user)
-      } catch (e) { alert(safeErrorMessage(e)) }
+      } catch (e) { showToast(safeErrorMessage(e)) }
     })
   })
 }
@@ -725,7 +725,7 @@ function showDistrictForm(user, editing) {
       const content = document.getElementById('tabContent')
       renderDistrictsTab(content, user)
     } catch (err) {
-      alert(safeErrorMessage(err))
+      showToast(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -810,7 +810,7 @@ async function renderUsersTab(container, user) {
       try {
         await Api.deleteUser(b.dataset.delUser)
         renderUsersTab(container, user)
-      } catch (e) { alert(safeErrorMessage(e)) }
+      } catch (e) { showToast(safeErrorMessage(e)) }
     })
   })
 }
@@ -955,7 +955,7 @@ function showUserForm(currentUser, categories, editing) {
       const content = document.getElementById('tabContent')
       renderUsersTab(content, currentUser)
     } catch (err) {
-      alert(safeErrorMessage(err))
+      showToast(safeErrorMessage(err))
       btn.disabled = false
       btn.textContent = isEdit ? 'Update' : 'Simpan'
     }
@@ -1019,7 +1019,7 @@ async function renderExcelTab(container, user) {
     try {
       await ExcelIO.export(user)
     } catch (e) {
-      alert('Gagal export: ' + safeErrorMessage(e))
+      showToast('Gagal export: ' + safeErrorMessage(e))
     } finally {
       btn.disabled = false
       btn.innerHTML = '📥 Download Excel'
@@ -1033,7 +1033,7 @@ async function renderExcelTab(container, user) {
     try {
       await ExcelIO.downloadTemplate()
     } catch (e) {
-      alert('Gagal membuat contoh: ' + safeErrorMessage(e))
+      showToast('Gagal membuat contoh: ' + safeErrorMessage(e))
     } finally {
       btn.disabled = false
       btn.innerHTML = '⬇️ Download Contoh'
@@ -1275,7 +1275,7 @@ async function renderSettingsTab(container, user) {
         groq_model: document.getElementById('groqModel').value,
       })
       showAlert('Pengaturan AI berhasil disimpan.')
-    } catch (e) { alert(safeErrorMessage(e)) }
+    } catch (e) { showToast(safeErrorMessage(e)) }
     finally {
       btn.disabled = false
       btn.textContent = 'Simpan Pengaturan AI'
@@ -1293,7 +1293,7 @@ async function renderSettingsTab(container, user) {
         excel_heading_line3: document.getElementById('excelLine3').value,
       })
       showAlert('Heading Excel berhasil disimpan.')
-    } catch (e) { alert(safeErrorMessage(e)) }
+    } catch (e) { showToast(safeErrorMessage(e)) }
     finally {
       btn.disabled = false
       btn.textContent = 'Simpan Heading Excel'
@@ -1307,7 +1307,7 @@ async function renderSettingsTab(container, user) {
     try {
       await Api.updateSettings({ site_name: document.getElementById('siteName').value })
       showAlert('Nama situs berhasil disimpan.')
-    } catch (e) { alert(safeErrorMessage(e)) }
+    } catch (e) { showToast(safeErrorMessage(e)) }
     finally {
       btn.disabled = false
       btn.textContent = 'Simpan'
