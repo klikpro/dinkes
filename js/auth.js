@@ -33,6 +33,44 @@ function sanitizeHtml(str) {
 }
 
 /**
+ * Toast notification — pengganti alert() untuk error/warning non-security
+ * (gagal simpan, gagal load data, dll). Tidak block halaman seperti alert().
+ * Untuk hal yang benar-benar security-critical (mis. akses ditolak, sesi
+ * dicurigai dicuri), tetap pakai alert()/redirect paksa, bukan toast, karena
+ * toast bisa diabaikan/hilang otomatis.
+ */
+function showToast(message, type = 'error', durationMs = 5000) {
+  let container = document.getElementById('toastContainer')
+  if (!container) {
+    container = document.createElement('div')
+    container.id = 'toastContainer'
+    document.body.appendChild(container)
+  }
+
+  const icons = { error: '⚠️', warning: '⚠️', info: 'ℹ️', success: '✅' }
+  const toast = document.createElement('div')
+  toast.className = `toast toast-${type}`
+  toast.innerHTML = `
+    <span class="toast-icon">${icons[type] || icons.error}</span>
+    <span class="toast-msg"></span>
+    <button type="button" class="toast-close" aria-label="Tutup">&times;</button>
+  `
+  // Set message via textContent (bukan innerHTML) untuk mencegah XSS
+  toast.querySelector('.toast-msg').textContent = message
+
+  const remove = () => {
+    toast.classList.add('toast-closing')
+    setTimeout(() => toast.remove(), 150)
+  }
+  toast.querySelector('.toast-close').addEventListener('click', remove)
+  const timer = setTimeout(remove, durationMs)
+  toast.addEventListener('mouseenter', () => clearTimeout(timer))
+
+  container.appendChild(toast)
+}
+window.showToast = showToast
+
+/**
  * Safe error message — only expose known user-facing errors,
  * hide internal details.
  */
