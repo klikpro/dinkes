@@ -1,0 +1,103 @@
+/* ==========================================================================
+   login.css — Style halaman login admin (login.html)
+   ========================================================================== */
+
+body.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: radial-gradient(ellipse at top, #0b3d34 0%, #04120f 60%, #020806 100%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+  overflow: hidden;
+}
+
+.login-head {
+  background: linear-gradient(120deg, #065f46, #0d9488 60%, #14b8a6);
+  color: white;
+  padding: 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.login-head::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 140px;
+  height: 140px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.login-head img.logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  margin: 0 auto 8px;
+  background: rgba(255,255,255,0.15);
+  padding: 6px;
+  border: 2px solid rgba(255,255,255,0.3);
+  position: relative;
+  z-index: 1;
+}
+.login-head h1 {
+  font-size: 18px;
+  position: relative;
+  z-index: 1;
+}
+.login-head p {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+.login-body { padding: 24px; }
+
+.login-foot {
+  padding: 12px 24px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  text-align: center;
+}
+.login-foot a {
+  font-size: 12px;
+  color: #64748b;
+}
+.login-foot a:hover { color: #065f46; }
+
+.login-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+  margin-top: 16px;
+}
+
+.login-credentials-info {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #475569;
+  text-align: center;
+}
+.login-credentials-info code {
+  background: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  color: #065f46;
+  font-weight: 600;
+}
