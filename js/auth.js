@@ -46,7 +46,9 @@ function safeErrorMessage(err) {
   if (msg.includes('Password baru minimal')) return msg
   if (msg.includes('Tidak terautentikasi')) return msg
   if (msg.includes('User tidak ditemukan')) return msg
-  // Don't expose internal errors
+  // Don't expose internal errors to the UI, but ALWAYS log the real error
+  // to console so it can be debugged without digging through the Network tab.
+  console.error('[safeErrorMessage] Original error (hidden from user):', err)
   return 'Terjadi kesalahan. Silakan coba lagi atau hubungi administrator.'
 }
 
